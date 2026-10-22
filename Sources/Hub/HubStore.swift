@@ -153,7 +153,7 @@ final class HubStore: ObservableObject {
                 let category = json["category"] as? String ?? ""
                 var device = HubDevice(
                     id: id, name: json["name"] as? String ?? "Aparelho", source: .tuya(account: uid),
-                    category: category, kind: HubDevice.tuyaKind(category: category),
+                    category: category, kind: HubDevice.tuyaKind(category: category, name: json["name"] as? String ?? ""),
                     online: json["online"] as? Bool ?? false
                 )
                 for item in json["status"] as? [[String: Any]] ?? [] {

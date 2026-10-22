@@ -17,7 +17,8 @@ enum Theme {
     static func symbol(_ device: HubDevice) -> String {
         switch device.kind {
         case .airConditioner: "air.conditioner.horizontal.fill"
-        case .light: device.category == "dd" ? "light.strip.2.fill" : "lightbulb.fill"
+        case .light: device.category == "dd" || device.name.lowercased().contains("led") ? "light.strip.2.fill"
+            : device.category == "cz" ? "light.recessed.fill" : "lightbulb.fill"
         case .plug: device.category == "pc" ? "poweroutlet.strip.fill" : "powerplug.fill"
         case .feeder: "pawprint.fill"
         case .remote: device.category == "infrared_tv" ? "tv.fill" : "av.remote.fill"

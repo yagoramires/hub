@@ -28,8 +28,13 @@ struct HubDevice: Identifiable, Equatable {
     /// SmartThings: capabilities do componente principal.
     var capabilities: Set<String> = []
 
-    static func tuyaKind(category: String) -> Kind {
-        switch category {
+    static func tuyaKind(category: String, name: String = "") -> Kind {
+        // Relé ou tomada ligado numa luz: na Tuya é "cz", mas para quem usa é uma luz.
+        if ["cz", "kg", "tdq"].contains(category),
+           name.lowercased().range(of: #"\b(luz|led|l[aâ]mpada|abajur|lumin[aá]ria|spot)\b"#, options: .regularExpression) != nil {
+            return .light
+        }
+        return switch category {
         case "dj", "dd", "xdd", "fwd", "dc", "tgq", "fsd", "tyndj", "gyd": .light
         case "cz", "pc", "kg", "tdq", "wkcz", "cl": .plug
         case "cwwsq", "cwysj", "cwjwq": .feeder
