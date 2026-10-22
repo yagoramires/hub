@@ -351,8 +351,7 @@ final class HubStore: ObservableObject {
         let id = clientId.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty, !secret.isEmpty else { return }
-        OAuthWindow.shared.start(url: SmartThingsClient.authorizationURL(clientId: id),
-                                 redirect: SmartThingsClient.redirectURI) { [weak self] code in
+        OAuthWindow.shared.start(url: SmartThingsClient.authorizationURL(clientId: id)) { [weak self] code in
             Task { @MainActor in
                 do {
                     let auth = try await SmartThingsClient.exchange(code: code, clientId: id, clientSecret: secret)

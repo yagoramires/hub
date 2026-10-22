@@ -146,14 +146,14 @@ struct SettingsView: View {
                     Button("Desconectar") { store.disconnectSmartThings() }.controlSize(.small)
                 }
             } else if let app = store.credentials.smartThingsApp {
-                Text("App OAuth pronto. Falta entrar com a conta Samsung, numa janela que abre agora.")
+                Text("App OAuth pronto. O login da Samsung abre no seu navegador; depois de autorizar, volte aqui.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Entrar com a Samsung") { store.connectSmartThings(clientId: app.clientId, clientSecret: app.clientSecret) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
             } else {
-                Text("Use o Client ID e o Client Secret do app OAuth criado no SmartThings CLI. O login abre numa janela da Samsung.")
+                Text("Use o Client ID e o Client Secret do app OAuth criado no SmartThings CLI. O login abre no seu navegador.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 TextField("Client ID", text: $clientId).textFieldStyle(.roundedBorder).controlSize(.small)
