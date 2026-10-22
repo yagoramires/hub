@@ -19,6 +19,23 @@ final class HubStore: ObservableObject {
 
     private var tuya: [String: TuyaClient] = [:]
     private var smartThings: SmartThingsClient?
+    private var tvs: [String: ATVRemote] = [:]
+    private let tvDiscovery = ATVDiscovery()
+    private var tvPairingSession: ATVPairing?
+    @Published private(set) var tvScan: TVScan?
+    @Published private(set) var tvPairing: TVPairing?
+
+    struct TVScan: Equatable {
+        var searching = true
+        var found: [ATVDiscovery.Found] = []
+    }
+
+    struct TVPairing: Equatable {
+        var name: String
+        var host: String
+        var waitingCode = false
+        var message: String?
+    }
     private var homes: [String: [TuyaClient.Home]] = [:]
     private var specs: [String: (functions: [String: DPSpec], status: [String: DPSpec])] = [:]
     private var rooms: [String: String] = [:]
@@ -66,6 +83,43 @@ final class HubStore: ObservableObject {
             }
             return client
         }
+        // TVs ficam conectadas o tempo todo (a própria TV avisa quando liga, desliga ou muda o volume).
+        let wanted = Set((credentials.androidTVs ?? []).map(\.host))
+        for (host, remote) in tvs where !wanted.contains(host) {
+            remote.stop()
+            tvs[host] = nil
+        }
+        for config in credentials.androidTVs ?? [] where tvs[config.host] == nil {
+            let remote = ATVRemote(host: config.host)
+            remote.onChange = { [weak self] in self?.updateTVs() }
+            tvs[config.host] = remote
+            remote.start()
+        }
+    }
+
+    private func tvDevices() -> [HubDevice] {
+        (credentials.androidTVs ?? []).compactMap { config in
+            guard let remote = tvs[config.host] else { return nil }
+            var device = HubDevice(id: "atv-\(config.host)", name: config.name, source: .androidTV(host: config.host),
+                                   category: "tv", kind: .tv, online: remote.connected)
+            if let on = remote.isOn { device.status["power"] = .bool(on) }
+            if let volume = remote.volume {
+                device.status["volume"] = .int(volume.level)
+                device.status["volume_max"] = .int(volume.max)
+                device.status["muted"] = .bool(volume.muted)
+            }
+            if let app = remote.app { device.status["app"] = .string(app) }
+            if remote.needsPairing { device.status["needs_pairing"] = .bool(true) }
+            return device
+        }
+    }
+
+    /// Atualiza só as TVs, sem esperar a próxima leitura das nuvens.
+    private func updateTVs() {
+        let fresh = tvDevices()
+        var list = devices.filter { if case .androidTV = $0.source { return false } else { return true } }
+        list += fresh
+        devices = list.sorted { ($0.kind, $0.name.localizedLowercase) < ($1.kind, $1.name.localizedLowercase) }
     }
 
     // MARK: Atualização
@@ -131,6 +185,8 @@ final class HubStore: ObservableObject {
                 found += devices.filter { $0.source == .smartThings }
             }
         }
+
+        found += tvDevices()
 
         let now = Date()
         for index in found.indices {
@@ -212,7 +268,86 @@ final class HubStore: ObservableObject {
         case .tuya:
             guard let code = device.powerCode else { return }
             setTuya(device, code, !device.isOn)
+        case .androidTV:
+            tvKey(device, .power)
         }
+    }
+
+    // MARK: TV (Google TV / Android TV)
+
+    func tvKey(_ device: HubDevice, _ key: ATVRemote.Key) {
+        guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
+        remote.send(key)
+    }
+
+    func tvLaunch(_ device: HubDevice, _ link: String) {
+        guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
+        debugLog("androidtv: abrir \(link)")
+        remote.launch(link)
+    }
+
+    func scanTVs() {
+        tvScan = TVScan()
+        Task {
+            let found = await tvDiscovery.scan()
+            let paired = Set((credentials.androidTVs ?? []).map(\.host))
+            tvScan = TVScan(searching: false, found: found.filter { !paired.contains($0.host) })
+            debugLog("androidtv: busca achou \(found.map { "\($0.name)@\($0.host)" })")
+        }
+    }
+
+    /// Conecta na porta de pareamento; a TV mostra o código e esperamos o usuário digitar.
+    func startTVPairing(name: String, host: String) {
+        tvPairingSession?.cancel()
+        let session = ATVPairing(host: host)
+        tvPairingSession = session
+        tvPairing = TVPairing(name: name, host: host, message: "Conectando na TV…")
+        Task {
+            do {
+                try await session.start(clientName: "Hub do Mac")
+                tvPairing?.waitingCode = true
+                tvPairing?.message = "Digite o código que apareceu na TV."
+            } catch {
+                tvPairing?.message = "Não deu: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func finishTVPairing(code: String) {
+        guard let session = tvPairingSession, let pairing = tvPairing else { return }
+        tvPairing?.message = "Conferindo…"
+        Task {
+            do {
+                try await session.finish(code: code)
+                var list = credentials.androidTVs ?? []
+                list.removeAll { $0.host == pairing.host }
+                list.append(AndroidTVConfig(name: pairing.name, host: pairing.host))
+                credentials.androidTVs = list
+                credentials.save()
+                tvPairing = nil
+                tvPairingSession = nil
+                tvScan = nil
+                tvs[pairing.host]?.stop()
+                tvs[pairing.host] = nil
+                rebuildClients()
+                debugLog("androidtv: pareado com \(pairing.name) (\(pairing.host))")
+            } catch {
+                tvPairing?.message = error.localizedDescription
+            }
+        }
+    }
+
+    func cancelTVPairing() {
+        tvPairingSession?.cancel()
+        tvPairingSession = nil
+        tvPairing = nil
+    }
+
+    func removeTV(host: String) {
+        credentials.androidTVs?.removeAll { $0.host == host }
+        credentials.save()
+        rebuildClients()
+        updateTVs()
     }
 
     func setTuya(_ device: HubDevice, _ code: String, _ value: Any) {
@@ -311,7 +446,10 @@ final class HubStore: ObservableObject {
         tv.status = [:]
         var fan = HubDevice(id: "fan", name: "Ventilador", source: .tuya(account: "x"), category: "cz", kind: .plug, online: false)
         fan.functions = plug.functions
-        devices = [ac, light, lamp, plug, fan, feeder, tv]
+        var tcl = HubDevice(id: "tcl", name: "TV da sala", source: .androidTV(host: "x"), category: "tv", kind: .tv, online: true)
+        tcl.status = ["power": .bool(true), "volume": .int(18), "volume_max": .int(100), "muted": .bool(false),
+                      "app": .string("com.google.android.youtube.tv")]
+        devices = [ac, tcl, light, lamp, plug, fan, feeder, tv]
         credentials = Credentials(tuya: [TuyaAccount(userCode: "", uid: "x", username: "voce@email.com", endpoint: "",
                                                      terminalId: "", accessToken: "", refreshToken: "", expireTime: 0)])
         loadedOnce = true

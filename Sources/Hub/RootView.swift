@@ -55,7 +55,10 @@ struct HomeView: View {
     let settings: () -> Void
 
     private var climate: [HubDevice] { store.devices.filter { $0.kind == .airConditioner && $0.source == .smartThings } }
-    private var tiles: [HubDevice] { store.devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && $0.kind != .remote } }
+    private var tvs: [HubDevice] { store.devices.filter { $0.kind == .tv } }
+    private var tiles: [HubDevice] {
+        store.devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && $0.kind != .remote && $0.kind != .tv }
+    }
     private var remotes: [HubDevice] { store.devices.filter { $0.kind == .remote } }
 
     var body: some View {
@@ -90,6 +93,7 @@ struct HomeView: View {
                 Scroller {
                     VStack(spacing: 10) {
                         ForEach(climate) { ACCard(device: $0) }
+                        ForEach(tvs) { device in TVCard(device: device) { open(device.id) } }
                         TileGrid(devices: tiles, open: open)
                         if !remotes.isEmpty {
                             SectionTitle(text: "Controles")

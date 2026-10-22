@@ -5,6 +5,7 @@ import AppKit
 //   Hub --tuya <id> <código> <valor JSON>   manda um comando Tuya
 //   Hub --st <id> <capability> <comando> [argumentos JSON]
 //   Hub --import-st-app <saída.json>       guarda o app OAuth criado pelo SmartThings CLI
+//   Hub --atv-scan                          procura TVs Google TV / Android TV na rede
 //   Hub --render <tela> <arquivo.png>      desenha uma tela com aparelhos de exemplo
 let arguments = CommandLine.arguments
 if arguments.count > 1, arguments[1].hasPrefix("--") {

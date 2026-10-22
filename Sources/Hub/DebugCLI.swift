@@ -5,6 +5,10 @@ import SwiftUI
 enum DebugCLI {
     static func run(_ arguments: [String]) async {
         if arguments.first == "--render" { return render(arguments) }
+        if arguments.first == "--atv-scan" {
+            let found = await ATVDiscovery().scan()
+            return print(found.isEmpty ? "nenhuma TV com a porta 6466" : found.map { "\($0.name) → \($0.host)" }.joined(separator: "\n"))
+        }
         if arguments.first == "--import-st-app", arguments.count > 1 {
             return print(HubStore().importSmartThingsApp(file: arguments[1]) ? "✓ app OAuth guardado" : "arquivo sem oauthClientId/oauthClientSecret")
         }

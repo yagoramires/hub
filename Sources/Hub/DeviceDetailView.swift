@@ -32,6 +32,7 @@ struct DeviceDetailView: View {
                     if device.source == .smartThings, device.kind == .airConditioner {
                         ACCard(device: device)
                     }
+                    if device.kind == .tv { TVRemoteView(device: device) }
                     if device.kind == .light { LightControls(device: device) }
                     if device.kind == .feeder { FeederControls(device: device) }
                     if device.kind == .feeder, device.functions["meal_plan"] != nil { MealPlanPanel(device: device) }
@@ -67,6 +68,7 @@ struct DeviceDetailView: View {
 
     private var source: String {
         switch device.source {
+        case .androidTV: "Google TV"
         case .smartThings: "SmartThings"
         case .tuya: "Smart Life"
         }

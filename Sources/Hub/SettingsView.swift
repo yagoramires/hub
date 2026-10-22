@@ -27,6 +27,7 @@ struct SettingsView: View {
                 VStack(spacing: 10) {
                     tuyaPanel
                     smartThingsPanel
+                    TVSettingsPanel()
                     Panel(title: "App") {
                         ToggleRow(title: "Abrir ao iniciar a sessão", isOn: launchAtLogin) { enabled in
                             do {

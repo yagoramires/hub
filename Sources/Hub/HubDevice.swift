@@ -5,10 +5,11 @@ struct HubDevice: Identifiable, Equatable {
     enum Source: Equatable {
         case tuya(account: String)
         case smartThings
+        case androidTV(host: String)
     }
 
     enum Kind: Int, Comparable {
-        case airConditioner, light, plug, feeder, remote, other
+        case airConditioner, tv, light, plug, feeder, remote, other
         static func < (lhs: Kind, rhs: Kind) -> Bool { lhs.rawValue < rhs.rawValue }
     }
 
@@ -60,6 +61,7 @@ struct HubDevice: Identifiable, Equatable {
         switch source {
         case .smartThings: capabilities.contains("switch")
         case .tuya: powerCode != nil
+        case .androidTV: online
         }
     }
 
@@ -67,6 +69,7 @@ struct HubDevice: Identifiable, Equatable {
         switch source {
         case .smartThings: status["switch.switch"]?.string == "on"
         case .tuya: powerCode.flatMap { status[$0]?.bool } ?? false
+        case .androidTV: status["power"]?.bool ?? false
         }
     }
 

@@ -6,6 +6,7 @@ enum Theme {
     static func accent(_ kind: HubDevice.Kind) -> Color {
         switch kind {
         case .airConditioner: Color(red: 0.25, green: 0.70, blue: 1.00)
+        case .tv: Color(red: 0.96, green: 0.36, blue: 0.40)
         case .light: Color(red: 1.00, green: 0.71, blue: 0.20)
         case .plug: Color(red: 0.25, green: 0.82, blue: 0.55)
         case .feeder: Color(red: 1.00, green: 0.45, blue: 0.53)
@@ -17,6 +18,7 @@ enum Theme {
     static func symbol(_ device: HubDevice) -> String {
         switch device.kind {
         case .airConditioner: "air.conditioner.horizontal.fill"
+        case .tv: "tv.fill"
         case .light: device.category == "dd" || device.name.lowercased().contains("led") ? "light.strip.2.fill"
             : device.category == "cz" ? "light.recessed.fill" : "lightbulb.fill"
         case .plug: device.category == "pc" ? "poweroutlet.strip.fill" : "powerplug.fill"

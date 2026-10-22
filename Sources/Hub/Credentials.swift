@@ -9,6 +9,8 @@ struct Credentials: Codable, Equatable {
     var smartThings: SmartThingsAuth?
     /// App OAuth criado pelo SmartThings CLI, guardado antes do primeiro login.
     var smartThingsApp: SmartThingsApp?
+    /// TVs com Google TV / Android TV já pareadas (o pareamento fica no certificado do Hub).
+    var androidTVs: [AndroidTVConfig]?
 
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Hub/credentials.json")
@@ -78,4 +80,9 @@ struct SmartThingsAuth: Codable, Equatable {
 struct SmartThingsApp: Codable, Equatable {
     var clientId: String
     var clientSecret: String
+}
+
+struct AndroidTVConfig: Codable, Equatable {
+    var name: String
+    var host: String
 }
