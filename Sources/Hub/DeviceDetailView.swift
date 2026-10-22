@@ -34,6 +34,7 @@ struct DeviceDetailView: View {
                     }
                     if device.kind == .light { LightControls(device: device) }
                     if device.kind == .feeder { FeederControls(device: device) }
+                    if device.kind == .feeder, device.functions["meal_plan"] != nil { MealPlanPanel(device: device) }
                     if !device.extraSwitches.isEmpty { outlets }
                     generic
                     readings

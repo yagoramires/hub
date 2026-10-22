@@ -302,8 +302,9 @@ final class HubStore: ObservableObject {
         lamp.status = ["switch_led": .bool(false)]
         var feeder = HubDevice(id: "feeder", name: "Ração dos gatos", source: .tuya(account: "x"), category: "cwwsq", kind: .feeder, online: true)
         feeder.functions = Dictionary(uniqueKeysWithValues: [spec("manual_feed", "Integer", ["min": 1, "max": 12]),
-            spec("light", "Boolean"), spec("slow_feed", "Boolean")])
-        feeder.status = ["feed_state": .string("standby"), "feed_report": .int(2), "light": .bool(true)]
+            spec("light", "Boolean"), spec("slow_feed", "Boolean"), spec("meal_plan", "Raw")])
+        feeder.status = ["feed_state": .string("standby"), "feed_report": .int(2), "light": .bool(true),
+                         "meal_plan": .string("fwYAAgF/DAABAAATAAIBfxUAAQA=")]
         var tv = HubDevice(id: "tv", name: "TV da sala", source: .tuya(account: "x"), category: "infrared_tv", kind: .remote, online: true)
         tv.status = [:]
         var fan = HubDevice(id: "fan", name: "Ventilador", source: .tuya(account: "x"), category: "cz", kind: .plug, online: false)
