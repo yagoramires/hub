@@ -38,6 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    /// hubmac://callback, o retorno do login do SmartThings.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { OAuthWindow.shared.handle($0) }
+        showPopover()
+    }
+
     private func icon(lit: Bool) -> NSImage? {
         let image = NSImage(systemSymbolName: lit ? "house.fill" : "house", accessibilityDescription: "Hub")
         image?.isTemplate = true

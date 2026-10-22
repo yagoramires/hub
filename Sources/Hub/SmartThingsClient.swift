@@ -1,13 +1,12 @@
 import Foundation
 
 /// API oficial do SmartThings (o ar-condicionado Samsung). O login é OAuth com um app próprio
-/// criado pelo SmartThings CLI (com http://127.0.0.1:53682/callback entre os redirectUris): o token vale 24 h e o refresh token 30 dias, renovado a cada uso.
+/// criado pelo SmartThings CLI (com hubmac://callback entre os redirectUris): o token vale 24 h e o refresh token 30 dias, renovado a cada uso.
 @MainActor
 final class SmartThingsClient {
     static let api = "https://api.smartthings.com/v1"
     static let authorizeURL = "https://api.smartthings.com/oauth/authorize"
     static let tokenURL = "https://auth-global.api.smartthings.com/oauth/token"
-    /// Porta local aberta pelo OAuthWindow só durante o login.
     static var redirectURI: String { OAuthWindow.redirectURI }
     static let scopes = "r:devices:* x:devices:* r:locations:*"
 
