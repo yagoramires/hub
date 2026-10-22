@@ -18,6 +18,11 @@ final class TuyaClient {
         self.account = account
     }
 
+    /// Troca pelo token salvo por outro processo (ex.: `Hub --dump`), que já invalidou o nosso.
+    func adopt(_ newer: TuyaAccount) {
+        account = newer
+    }
+
     // MARK: Login por QR code
 
     struct QRCode {

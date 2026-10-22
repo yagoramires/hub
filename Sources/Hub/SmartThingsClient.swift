@@ -17,6 +17,10 @@ final class SmartThingsClient {
         self.auth = auth
     }
 
+    func adopt(_ newer: SmartThingsAuth) {
+        auth = newer
+    }
+
     var canRefresh: Bool { !auth.clientId.isEmpty && !auth.refreshToken.isEmpty }
 
     // MARK: OAuth

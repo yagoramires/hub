@@ -91,7 +91,29 @@ final class HubStore: ObservableObject {
         refreshTask = nil
     }
 
+    /// Os tokens giram a cada renovação, e a anterior deixa de valer. Se outro processo (o
+    /// `Hub --dump` no terminal, por exemplo) renovou e salvou no Keychain, o nosso já morreu:
+    /// adota o mais novo antes de usar.
+    private func syncTokensFromKeychain() {
+        let stored = Credentials.load()
+        for account in stored.tuya {
+            guard let client = tuya[account.uid], account.expireTime > client.account.expireTime,
+                  let index = credentials.tuya.firstIndex(where: { $0.uid == account.uid }) else { continue }
+            client.adopt(account)
+            credentials.tuya[index].accessToken = account.accessToken
+            credentials.tuya[index].refreshToken = account.refreshToken
+            credentials.tuya[index].expireTime = account.expireTime
+            debugLog("tuya: adotou token mais novo do Keychain")
+        }
+        if let auth = stored.smartThings, let smartThings, auth.expiresAt > smartThings.auth.expiresAt {
+            smartThings.adopt(auth)
+            credentials.smartThings = auth
+            debugLog("smartthings: adotou token mais novo do Keychain")
+        }
+    }
+
     private func load() async {
+        syncTokensFromKeychain()
         loading = true
         defer { loading = false; loadedOnce = true }
         var found: [HubDevice] = []
