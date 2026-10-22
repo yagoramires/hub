@@ -28,11 +28,10 @@ cp "$BIN" "$APP/Contents/MacOS/Hub"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
-# O Keychain libera os tokens só para a mesma assinatura. Com assinatura ad-hoc ela muda a
-# cada build e o macOS volta a pedir senha; por isso usamos o certificado local fixo do Aero.
+# Assina com o certificado local fixo do Aero, para o macOS reconhecer o app entre builds.
 IDENTITY="Aero Local Signing"
 if ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
-  echo "⚠ sem certificado local: rode ../aero/scripts/setup-signing.sh, senão o Keychain pede senha a cada build"
+  echo "⚠ sem certificado local: rode ../aero/scripts/setup-signing.sh, senão o macOS trata cada build como outro app"
   IDENTITY="-"
 fi
 codesign --force --sign "$IDENTITY" --timestamp=none "$APP"

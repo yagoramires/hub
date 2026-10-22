@@ -1,6 +1,6 @@
 import AppKit
 
-// Modo terminal, para depurar sem abrir a interface (usa os mesmos tokens do Keychain):
+// Modo terminal, para depurar sem abrir a interface (usa os mesmos tokens do app):
 //   Hub --dump                              lista aparelhos, pontos de dados e valores
 //   Hub --tuya <id> <código> <valor JSON>   manda um comando Tuya
 //   Hub --st <id> <capability> <comando> [argumentos JSON]

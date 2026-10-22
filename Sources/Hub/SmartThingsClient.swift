@@ -97,6 +97,13 @@ final class SmartThingsClient {
         return flat
     }
 
+    /// "ONLINE" ou "OFFLINE", segundo o próprio SmartThings.
+    func isOnline(device: String) async -> Bool? {
+        guard let json = try? await request("GET", "/devices/\(device)/health") as? [String: Any],
+              let state = json["state"] as? String else { return nil }
+        return state == "ONLINE"
+    }
+
     func command(device: String, capability: String, command: String, arguments: [Any] = []) async throws {
         var item: [String: Any] = ["component": "main", "capability": capability, "command": command]
         if !arguments.isEmpty { item["arguments"] = arguments }

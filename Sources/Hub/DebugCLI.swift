@@ -6,7 +6,7 @@ enum DebugCLI {
     static func run(_ arguments: [String]) async {
         if arguments.first == "--render" { return render(arguments) }
         if arguments.first == "--import-st-app", arguments.count > 1 {
-            return print(HubStore().importSmartThingsApp(file: arguments[1]) ? "✓ app OAuth guardado no Keychain" : "arquivo sem oauthClientId/oauthClientSecret")
+            return print(HubStore().importSmartThingsApp(file: arguments[1]) ? "✓ app OAuth guardado" : "arquivo sem oauthClientId/oauthClientSecret")
         }
         let store = HubStore()
         if arguments.first == "--raw" {

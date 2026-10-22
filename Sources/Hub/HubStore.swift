@@ -92,9 +92,9 @@ final class HubStore: ObservableObject {
     }
 
     /// Os tokens giram a cada renovação, e a anterior deixa de valer. Se outro processo (o
-    /// `Hub --dump` no terminal, por exemplo) renovou e salvou no Keychain, o nosso já morreu:
+    /// `Hub --dump` no terminal, por exemplo) renovou e salvou no arquivo, o nosso já morreu:
     /// adota o mais novo antes de usar.
-    private func syncTokensFromKeychain() {
+    private func syncTokensFromDisk() {
         let stored = Credentials.load()
         for account in stored.tuya {
             guard let client = tuya[account.uid], account.expireTime > client.account.expireTime,
@@ -103,17 +103,17 @@ final class HubStore: ObservableObject {
             credentials.tuya[index].accessToken = account.accessToken
             credentials.tuya[index].refreshToken = account.refreshToken
             credentials.tuya[index].expireTime = account.expireTime
-            debugLog("tuya: adotou token mais novo do Keychain")
+            debugLog("tuya: adotou token mais novo do arquivo")
         }
         if let auth = stored.smartThings, let smartThings, auth.expiresAt > smartThings.auth.expiresAt {
             smartThings.adopt(auth)
             credentials.smartThings = auth
-            debugLog("smartthings: adotou token mais novo do Keychain")
+            debugLog("smartthings: adotou token mais novo do arquivo")
         }
     }
 
     private func load() async {
-        syncTokensFromKeychain()
+        syncTokensFromDisk()
         loading = true
         defer { loading = false; loadedOnce = true }
         var found: [HubDevice] = []
@@ -189,7 +189,9 @@ final class HubStore: ObservableObject {
                 online: true, capabilities: capabilities
             )
             device.status = (try? await client.status(device: id)) ?? [:]
-            if let health = device.status["healthCheck.DeviceWatch-DeviceStatus"]?.string {
+            if let online = await client.isOnline(device: id) {
+                device.online = online
+            } else if let health = device.status["healthCheck.DeviceWatch-DeviceStatus"]?.string {
                 device.online = health != "offline"
             }
             // Celulares, TVs desligadas e afins não interessam aqui.
@@ -386,7 +388,7 @@ final class HubStore: ObservableObject {
         }
     }
 
-    /// Lê a saída JSON do `smartthings apps:create` e guarda Client ID e Secret no Keychain.
+    /// Lê a saída JSON do `smartthings apps:create` e guarda Client ID e Secret junto das credenciais.
     func importSmartThingsApp(file: String) -> Bool {
         guard let data = FileManager.default.contents(atPath: file),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
