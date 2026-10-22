@@ -59,7 +59,7 @@ enum Labels {
         "feed_report": "Última refeição", "slow_feed": "Servir devagar", "voice_times": "Chamar pelo som",
         "battery_percentage": "Bateria", "charge_state": "Carregando", "factory_reset": "Restaurar",
         "cur_power": "Potência", "cur_voltage": "Tensão", "cur_current": "Corrente", "add_ele": "Consumo",
-        "do_not_disturb": "Não perturbe", "music_data": "Música",
+        "do_not_disturb": "Não perturbe", "overcharge_switch": "Proteção de sobrecarga", "music_data": "Música",
     ]
 
     private static let values: [String: String] = [

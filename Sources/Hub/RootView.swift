@@ -71,6 +71,12 @@ struct HomeView: View {
                     .padding(.bottom, 8)
             }
 
+            if store.devices.count > 1, store.devices.allSatisfy({ !$0.online }) {
+                ErrorBanner(text: "Todos os aparelhos estão offline na nuvem. Eles costumam ficar assim quando perdem o Wi‑Fi (troca de roteador ou de senha).") {}
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+            }
+
             if !store.hasAccounts {
                 EmptyState(settings: settings)
             } else if store.devices.isEmpty {

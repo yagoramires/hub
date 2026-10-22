@@ -47,6 +47,9 @@ struct Credentials: Codable, Equatable {
 }
 
 struct TuyaAccount: Codable, Equatable {
+    /// App onde a conta foi criada (Smart Life, Tuya Smart, Positivo). São contas separadas
+    /// na mesma nuvem; serve só para o usuário saber qual é qual.
+    var app: String?
     var userCode: String
     var uid: String
     var username: String

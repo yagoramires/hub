@@ -43,6 +43,8 @@ struct HubDevice: Identifiable, Equatable {
 
     /// Ponto Tuya que liga e desliga o aparelho inteiro, quando existe.
     var powerCode: String? {
+        // No alimentador, "switch" não desliga o aparelho (é o liga/desliga das refeições programadas).
+        if kind == .feeder { return nil }
         for code in ["switch_led", "switch", "switch_1", "power", "switch_on"] {
             if functions[code]?.isBool == true { return code }
         }

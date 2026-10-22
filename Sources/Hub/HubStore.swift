@@ -12,6 +12,7 @@ final class HubStore: ObservableObject {
 
     struct Pairing: Equatable {
         var userCode: String
+        var app: String
         var qrPayload: String?
         var message: String?
     }
@@ -240,6 +241,17 @@ final class HubStore: ObservableObject {
         }
     }
 
+    /// JSON cru da nuvem Tuya, para o `Hub --raw`.
+    func rawTuya() async -> [[String: Any]] {
+        var all: [[String: Any]] = []
+        for client in tuya.values {
+            for home in (try? await client.homes()) ?? [] {
+                all += (try? await client.devices(home: home.id)) ?? []
+            }
+        }
+        return all
+    }
+
     /// Aparelhos de exemplo para o `Hub --render`.
     func loadSample() {
         func spec(_ code: String, _ type: String, _ values: [String: Any] = [:]) -> (String, DPSpec) {
@@ -282,19 +294,20 @@ final class HubStore: ObservableObject {
 
     // MARK: Contas
 
-    func startPairing(userCode: String) {
+    func startPairing(userCode: String, app: String) {
         let code = userCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else { return }
         pairingTask?.cancel()
-        pairing = Pairing(userCode: code, message: "Gerando QR code…")
+        pairing = Pairing(userCode: code, app: app, message: "Gerando QR code…")
         pairingTask = Task {
             do {
                 let qr = try await TuyaClient.requestQRCode(userCode: code)
-                pairing = Pairing(userCode: code, qrPayload: qr.payload, message: "Aguardando o celular…")
+                pairing = Pairing(userCode: code, app: app, qrPayload: qr.payload, message: "Aguardando o celular…")
                 let deadline = Date().addingTimeInterval(5 * 60)
                 while Date() < deadline {
                     try await Task.sleep(for: .seconds(2))
-                    if let account = try? await TuyaClient.pollLogin(qr: qr, userCode: code) {
+                    if var account = try? await TuyaClient.pollLogin(qr: qr, userCode: code) {
+                        account.app = app
                         credentials.tuya.removeAll { $0.uid == account.uid }
                         credentials.tuya.append(account)
                         credentials.save()
@@ -309,7 +322,7 @@ final class HubStore: ObservableObject {
                 pairing?.qrPayload = nil
             } catch is CancellationError {
             } catch {
-                pairing = Pairing(userCode: code, message: "Erro: \(error.localizedDescription)")
+                pairing = Pairing(userCode: code, app: app, message: "Erro: \(error.localizedDescription)")
             }
         }
     }
@@ -317,6 +330,13 @@ final class HubStore: ObservableObject {
     func cancelPairing() {
         pairingTask?.cancel()
         pairing = nil
+    }
+
+    func renameTuya(uid: String, app: String) {
+        guard let index = credentials.tuya.firstIndex(where: { $0.uid == uid }) else { return }
+        credentials.tuya[index].app = app
+        credentials.save()
+        tuya[uid].map { _ in rebuildClients() }
     }
 
     func removeTuya(uid: String) {

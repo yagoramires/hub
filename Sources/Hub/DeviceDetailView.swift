@@ -16,6 +16,7 @@ struct DeviceDetailView: View {
         if let power = device.powerCode { codes.insert(power) }
         if device.kind == .light { codes.formUnion(["bright_value", "bright_value_v2", "temp_value", "temp_value_v2", "work_mode"]) }
         if device.kind == .feeder { codes.formUnion(["manual_feed", "quick_feed"]) }
+        if device.kind == .plug { codes.formUnion(["cycle_time", "random_time"]) }
         codes.formUnion(device.extraSwitches)
         return codes
     }
@@ -87,7 +88,7 @@ struct DeviceDetailView: View {
         if !specs.isEmpty {
             Panel(title: "Ajustes") {
                 ForEach(specs, id: \.code) { spec in
-                    let title = Labels.code(spec.code, spec: spec)
+                    let title = device.kind == .feeder && spec.code == "switch" ? "Refeições programadas" : Labels.code(spec.code, spec: spec)
                     if spec.isBool {
                         ToggleRow(title: title, isOn: device.status[spec.code]?.bool ?? false, tint: accent) {
                             store.setTuya(device, spec.code, $0)
@@ -117,8 +118,10 @@ struct DeviceDetailView: View {
 
     @ViewBuilder
     private var readings: some View {
+        // Coeficientes de calibração e código de falha não interessam a ninguém.
+        let hidden: Set<String> = ["electric_coe", "electricity_coe", "power_coe", "voltage_coe", "fault"]
         let codes = device.statusSpecs.keys
-            .filter { device.functions[$0] == nil && device.status[$0]?.number != nil }
+            .filter { device.functions[$0] == nil && device.status[$0]?.number != nil && !hidden.contains($0) }
             .sorted()
         if !codes.isEmpty {
             Panel(title: "Leituras") {

@@ -7,6 +7,7 @@ struct SettingsView: View {
     let back: () -> Void
 
     @Local private var userCode = ""
+    @Local private var pairingApp = "Smart Life"
     @Local private var clientId = ""
     @Local private var clientSecret = ""
     @Local private var token = ""
@@ -51,18 +52,31 @@ struct SettingsView: View {
 
     // MARK: Tuya
 
+    static let tuyaApps = ["Smart Life", "Tuya Smart", "Positivo"]
+
     private var tuyaPanel: some View {
-        Panel(title: "Smart Life · Tuya · Positivo") {
+        Panel(title: "Smart Life · Tuya Smart · Positivo") {
             ForEach(store.credentials.tuya, id: \.uid) { account in
+                let devices = store.devices.filter { $0.source == .tuya(account: account.uid) }
                 HStack {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(account.username.isEmpty ? "Conta Tuya" : account.username).font(.system(size: 12, weight: .medium))
-                        Text("\(store.devices.filter { $0.source == .tuya(account: account.uid) }.count) aparelhos")
-                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        Text(account.app ?? "Conta Tuya").font(.system(size: 12, weight: .medium))
+                        Text(devices.isEmpty ? "Nenhum aparelho" : devices.map(\.name).joined(separator: ", "))
+                            .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
-                    Button("Remover") { store.removeTuya(uid: account.uid) }.controlSize(.small)
+                    Menu {
+                        ForEach(Self.tuyaApps, id: \.self) { app in
+                            Button("É do \(app)") { store.renameTuya(uid: account.uid, app: app) }
+                        }
+                        Divider()
+                        Button("Remover conta", role: .destructive) { store.removeTuya(uid: account.uid) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
             }
 
@@ -75,8 +89,9 @@ struct SettingsView: View {
                             .frame(width: 180, height: 180)
                             .padding(8)
                             .background(RoundedRectangle(cornerRadius: 12).fill(.white))
-                        Text("No app **Smart Life**, toque no ícone de leitor no canto de cima da tela inicial e escaneie. Depois confirme o login no celular.")
+                        Text("No app **\(pairing.app)** (na conta \(pairing.app)), toque no ícone de leitor no canto de cima da tela inicial e escaneie. Depois confirme o login no celular.")
                             .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     HStack(spacing: 6) {
                         if pairing.qrPayload != nil { ProgressView().controlSize(.mini) }
@@ -86,19 +101,32 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                Text("Código de usuário: no app Smart Life, vá em **Eu → ⚙︎ Configurações → Conta e segurança → Código de usuário**.")
+                if !store.credentials.tuya.isEmpty { Divider().padding(.vertical, 2) }
+                Text(store.credentials.tuya.isEmpty ? "Conectar conta" : "Conectar outra conta")
+                    .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 6) {
+                    ForEach(Self.tuyaApps, id: \.self) { app in
+                        Chip(title: app, selected: pairingApp == app) { pairingApp = app }
+                    }
+                }
+                Text("No app \(pairingApp), vá em **Eu → ⚙︎ Configurações → Conta e segurança → Código de usuário** e cole aqui.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    TextField("Código de usuário", text: $userCode)
+                    TextField("Código de usuário do \(pairingApp)", text: $userCode)
                         .textFieldStyle(.roundedBorder)
-                        .onSubmit { store.startPairing(userCode: userCode) }
-                    Button("Gerar QR") { store.startPairing(userCode: userCode) }
+                        .onSubmit { pair() }
+                    Button("Gerar QR", action: pair)
                         .disabled(userCode.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .controlSize(.small)
             }
         }
+    }
+
+    private func pair() {
+        store.startPairing(userCode: userCode, app: pairingApp)
+        userCode = ""
     }
 
     // MARK: SmartThings

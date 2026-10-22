@@ -9,6 +9,17 @@ enum DebugCLI {
             return print(HubStore().importSmartThingsApp(file: arguments[1]) ? "✓ app OAuth guardado no Keychain" : "arquivo sem oauthClientId/oauthClientSecret")
         }
         let store = HubStore()
+        if arguments.first == "--raw" {
+            for device in await store.rawTuya() {
+                var copy = device
+                copy["local_key"] = "…"
+                copy["status"] = nil
+                if let data = try? JSONSerialization.data(withJSONObject: copy, options: [.prettyPrinted, .sortedKeys]) {
+                    print(String(data: data, encoding: .utf8) ?? "")
+                }
+            }
+            return
+        }
         await store.refresh()
         if let error = store.error { print("ERRO:", error) }
 
