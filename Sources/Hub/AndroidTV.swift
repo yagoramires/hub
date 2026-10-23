@@ -655,3 +655,45 @@ private extension NWBrowser.Descriptor {
         return ""
     }
 }
+
+// MARK: ADB (opcional)
+
+/// Abre apps pelo ADB da TV, igual à tela inicial. Precisa da depuração pela rede ligada na TV e do
+/// Mac autorizado nela (a TV pergunta na primeira vez).
+/// shortcut: usa o adb do Homebrew (brew install --cask android-platform-tools); sem ele, cai no link do controle.
+enum ADB {
+    static let path = "/opt/homebrew/bin/adb"
+
+    static func launch(package: String, host: String) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path) else { return false }
+        let target = "\(host):5555"
+        _ = await run(["connect", target])
+        // Apps de TV declaram LEANBACK_LAUNCHER; alguns só têm o LAUNCHER comum.
+        for category in ["android.intent.category.LEANBACK_LAUNCHER", "android.intent.category.LAUNCHER"] {
+            let output = await run(["-s", target, "shell", "monkey", "-p", package, "-c", category, "1"])
+            if output.contains("Events injected") { return true }
+            debugLog("adb: \(package) não abriu (\(output.split(separator: "\n").last ?? ""))")
+            if output.contains("unauthorized") || output.contains("failed to connect") || output.contains("not found") { break }
+        }
+        return false
+    }
+
+    private static func run(_ arguments: [String]) async -> String {
+        await Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: path)
+            process.arguments = arguments
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+            guard (try? process.run()) != nil else { return "" }
+            // A TV desligada ou sem depuração não pode travar o clique.
+            let timer = DispatchWorkItem { process.terminate() }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: timer)
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            timer.cancel()
+            return String(data: data, encoding: .utf8) ?? ""
+        }.value
+    }
+}

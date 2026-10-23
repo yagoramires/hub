@@ -283,7 +283,13 @@ final class HubStore: ObservableObject {
     func tvLaunch(_ device: HubDevice, _ link: String) {
         guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
         debugLog("androidtv: abrir \(link)")
-        remote.launch(link)
+        let prefix = "market://launch?id="
+        guard link.hasPrefix(prefix) else { return remote.launch(link) }
+        // Pelo link alguns apps (o Max) abrem numa tela de erro; pelo ADB abrem como na tela inicial.
+        Task {
+            if await ADB.launch(package: String(link.dropFirst(prefix.count)), host: host) { return }
+            remote.launch(link)
+        }
     }
 
     func scanTVs() {
