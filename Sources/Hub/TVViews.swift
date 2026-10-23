@@ -1,31 +1,70 @@
 import SwiftUI
 
 enum TVApps {
-    struct App: Identifiable {
+    struct App: Identifiable, Codable, Equatable {
         let name: String
         let link: String
-        let color: Color
-        var id: String { name }
+        var id: String { link }
+
+        var color: Color {
+            if let known = TVApps.colors[name] { return known }
+            // App adicionado pelo usuário: cor estável a partir do nome.
+            let hue = Double(name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360
+            return Color(hue: hue, saturation: 0.6, brightness: 0.75)
+        }
     }
 
-    /// Links documentados pelo Home Assistant; o Globoplay abre pelo pacote.
-    static let all: [App] = [
-        App(name: "YouTube", link: "https://www.youtube.com", color: Color(red: 0.93, green: 0.13, blue: 0.13)),
-        App(name: "Netflix", link: "netflix://", color: Color(red: 0.75, green: 0.04, blue: 0.08)),
-        App(name: "Prime", link: "https://app.primevideo.com", color: Color(red: 0.0, green: 0.66, blue: 0.88)),
-        App(name: "Disney+", link: "https://www.disneyplus.com", color: Color(red: 0.07, green: 0.2, blue: 0.55)),
-        App(name: "Globoplay", link: "market://launch?id=com.globo.globotv", color: Color(red: 0.98, green: 0.36, blue: 0.13)),
-        App(name: "Spotify", link: "spotify://", color: Color(red: 0.11, green: 0.73, blue: 0.33)),
+    /// Links documentados pelo Home Assistant; o resto abre pelo pacote (market://launch?id=…).
+    static let defaults: [App] = [
+        App(name: "YouTube", link: "https://www.youtube.com"),
+        App(name: "Netflix", link: "netflix://"),
+        App(name: "Prime", link: "https://app.primevideo.com"),
+        App(name: "Disney+", link: "https://www.disneyplus.com"),
+        App(name: "Globoplay", link: "market://launch?id=com.globo.globotv"),
+        App(name: "Spotify", link: "spotify://"),
+        App(name: "Max", link: "market://launch?id=com.wbd.stream"),
+        App(name: "Twitch", link: "twitch://home"),
+        App(name: "Crunchyroll", link: "market://launch?id=com.crunchyroll.crunchyroid"),
+        App(name: "Pluto TV", link: "market://launch?id=tv.pluto.android"),
     ]
+
+    private static let colors: [String: Color] = [
+        "YouTube": Color(red: 0.93, green: 0.13, blue: 0.13), "Netflix": Color(red: 0.75, green: 0.04, blue: 0.08),
+        "Prime": Color(red: 0.0, green: 0.66, blue: 0.88), "Disney+": Color(red: 0.07, green: 0.2, blue: 0.55),
+        "Globoplay": Color(red: 0.98, green: 0.36, blue: 0.13), "Spotify": Color(red: 0.11, green: 0.73, blue: 0.33),
+        "Max": Color(red: 0.0, green: 0.2, blue: 0.85), "Twitch": Color(red: 0.57, green: 0.27, blue: 1.0),
+        "Crunchyroll": Color(red: 0.96, green: 0.46, blue: 0.13), "Pluto TV": Color(red: 0.2, green: 0.2, blue: 0.25),
+    ]
+
+    private static let key = "tvApps"
+
+    static func load() -> [App] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let apps = try? JSONDecoder().decode([App].self, from: data) else { return defaults }
+        return apps
+    }
+
+    static func save(_ apps: [App]) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(apps), forKey: key)
+    }
 
     static func name(of package: String) -> String? {
         let known = [
             "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix",
             "com.amazon.amazonvideo.livingroom": "Prime Video", "com.disney.disneyplus": "Disney+",
-            "com.globo.globotv": "Globoplay", "com.spotify.tv.android": "Spotify",
+            "com.globo.globotv": "Globoplay", "com.spotify.tv.android": "Spotify", "com.wbd.stream": "Max",
+            "tv.twitch.android.app": "Twitch", "com.crunchyroll.crunchyroid": "Crunchyroll", "tv.pluto.android": "Pluto TV",
             "com.google.android.apps.tv.launcherx": "Início", "com.google.android.tvlauncher": "Início",
         ]
         return known[package]
+    }
+
+    /// App que está aberto na TV, pronto para virar botão (nil se for a tela inicial ou já estiver na lista).
+    static func fromCurrent(_ package: String?, existing: [App]) -> App? {
+        guard let package, !package.isEmpty, name(of: package) != "Início" else { return nil }
+        let app = App(name: name(of: package) ?? package.split(separator: ".").last.map { $0.capitalized } ?? package,
+                      link: "market://launch?id=\(package)")
+        return existing.contains { $0.link == app.link || $0.name == app.name } ? nil : app
     }
 }
 
@@ -146,6 +185,12 @@ struct TVRemoteView: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
     @FocusState private var focused: Bool
+    @Local private var apps = TVApps.load()
+
+    private func update(_ list: [TVApps.App]) {
+        apps = list
+        TVApps.save(list)
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -172,17 +217,39 @@ struct TVRemoteView: View {
 
             Panel(title: "Apps") {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(TVApps.all) { app in
+                    ForEach(apps) { app in
                         Button { store.tvLaunch(device, app.link) } label: {
                             Text(app.name)
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                                 .frame(maxWidth: .infinity, minHeight: 34)
                                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(app.color))
                         }
                         .buttonStyle(PressStyle())
+                        .contextMenu {
+                            Button("Remover", role: .destructive) { update(apps.filter { $0 != app }) }
+                        }
                     }
                 }
+                HStack {
+                    if let current = TVApps.fromCurrent(device.status["app"]?.string, existing: apps) {
+                        Button { update(apps + [current]) } label: {
+                            Label("Adicionar \(current.name), aberto na TV", systemImage: "plus.circle.fill")
+                        }
+                    } else {
+                        Text("Para adicionar, abra o app na TV. Botão direito remove.")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if apps != TVApps.defaults {
+                        Button("Restaurar") { update(TVApps.defaults) }
+                    }
+                }
+                .font(.system(size: 11))
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent(.tv))
             }
 
             Text("Dica: com o controle aberto, as setas, Enter e Delete do teclado comandam a TV.")
