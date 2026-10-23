@@ -22,7 +22,7 @@ enum TVApps {
         App(name: "Disney+", link: "https://www.disneyplus.com"),
         App(name: "Globoplay", link: "market://launch?id=com.globo.globotv"),
         App(name: "Spotify", link: "spotify://"),
-        App(name: "Max", link: "market://launch?id=com.hbo.hbonow"),
+        App(name: "Max", link: "market://launch?id=com.wbd.stream"),
         App(name: "Twitch", link: "twitch://home"),
         App(name: "Crunchyroll", link: "market://launch?id=com.crunchyroll.crunchyroid"),
         App(name: "Pluto TV", link: "market://launch?id=tv.pluto.android"),
@@ -41,8 +41,8 @@ enum TVApps {
     static func load() -> [App] {
         guard let data = UserDefaults.standard.data(forKey: key),
               let apps = try? JSONDecoder().decode([App].self, from: data) else { return defaults }
-        // com.wbd.stream é o Max de celular; na TV o app ainda é com.hbo.hbonow (listas salvas antes da correção).
-        return apps.map { $0.link == "market://launch?id=com.wbd.stream" ? App(name: $0.name, link: "market://launch?id=com.hbo.hbonow") : $0 }
+        // com.hbo.hbonow não existe nessa TV; o Max dela é com.wbd.stream (listas salvas com o nome errado).
+        return apps.map { $0.link == "market://launch?id=com.hbo.hbonow" ? App(name: $0.name, link: "market://launch?id=com.wbd.stream") : $0 }
     }
 
     static func save(_ apps: [App]) {
