@@ -5,6 +5,13 @@ import SwiftUI
 enum DebugCLI {
     static func run(_ arguments: [String]) async {
         if arguments.first == "--render" { return render(arguments) }
+        if arguments.first == "--atv-launch", arguments.count > 1, let tv = Credentials.load().androidTVs?.first {
+            let remote = ATVRemote(host: tv.host)
+            remote.start()
+            remote.launch(arguments[1])
+            try? await Task.sleep(for: .seconds(8))
+            return print("app na TV: \(remote.app ?? "não informado")")
+        }
         if arguments.first == "--atv-scan" {
             let found = await ATVDiscovery().scan()
             return print(found.isEmpty ? "nenhuma TV com a porta 6466" : found.map { "\($0.name) → \($0.host)" }.joined(separator: "\n"))

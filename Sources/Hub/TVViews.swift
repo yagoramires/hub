@@ -22,7 +22,7 @@ enum TVApps {
         App(name: "Disney+", link: "https://www.disneyplus.com"),
         App(name: "Globoplay", link: "market://launch?id=com.globo.globotv"),
         App(name: "Spotify", link: "spotify://"),
-        App(name: "Max", link: "market://launch?id=com.wbd.stream"),
+        App(name: "Max", link: "market://launch?id=com.hbo.hbonow"),
         App(name: "Twitch", link: "twitch://home"),
         App(name: "Crunchyroll", link: "market://launch?id=com.crunchyroll.crunchyroid"),
         App(name: "Pluto TV", link: "market://launch?id=tv.pluto.android"),
@@ -41,7 +41,8 @@ enum TVApps {
     static func load() -> [App] {
         guard let data = UserDefaults.standard.data(forKey: key),
               let apps = try? JSONDecoder().decode([App].self, from: data) else { return defaults }
-        return apps
+        // com.wbd.stream é o Max de celular; na TV o app ainda é com.hbo.hbonow (listas salvas antes da correção).
+        return apps.map { $0.link == "market://launch?id=com.wbd.stream" ? App(name: $0.name, link: "market://launch?id=com.hbo.hbonow") : $0 }
     }
 
     static func save(_ apps: [App]) {
@@ -52,7 +53,7 @@ enum TVApps {
         let known = [
             "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix",
             "com.amazon.amazonvideo.livingroom": "Prime Video", "com.disney.disneyplus": "Disney+",
-            "com.globo.globotv": "Globoplay", "com.spotify.tv.android": "Spotify", "com.wbd.stream": "Max",
+            "com.globo.globotv": "Globoplay", "com.spotify.tv.android": "Spotify", "com.hbo.hbonow": "Max", "com.wbd.stream": "Max",
             "tv.twitch.android.app": "Twitch", "com.crunchyroll.crunchyroid": "Crunchyroll", "tv.pluto.android": "Pluto TV",
             "com.google.android.apps.tv.launcherx": "Início", "com.google.android.tvlauncher": "Início",
         ]

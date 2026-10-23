@@ -443,8 +443,10 @@ final class ATVRemote {
     private var reconnect: Task<Void, Never>?
     private var failures = 0
     private var stopped = false
-    /// PING | KEY | POWER | VOLUME | APP_LINK, como no androidtvremote2.
-    private var features = 611
+    /// PING | KEY | IME | POWER | VOLUME | APP_LINK. Sem IME a TV não conta qual app está aberto.
+    private var features = 615
+    /// Comandos dados enquanto a conexão estava caída; saem assim que ela volta.
+    private var queued: [PB] = []
 
     init(host: String) {
         self.host = host
@@ -453,6 +455,7 @@ final class ATVRemote {
     func start() {
         stopped = false
         guard connection == nil else { return }
+        reconnect?.cancel()
         Task { await connect() }
     }
 
@@ -466,13 +469,19 @@ final class ATVRemote {
     }
 
     func send(_ key: Key) {
-        guard let connection, connected else { return start() }
-        connection.send(PB.build { pb in pb.message(10) { inject in inject.int(1, key.rawValue); inject.int(2, 3) } })
+        deliver(PB.build { pb in pb.message(10) { inject in inject.int(1, key.rawValue); inject.int(2, 3) } })
     }
 
     func launch(_ link: String) {
-        guard let connection, connected else { return start() }
-        connection.send(PB.build { pb in pb.message(90) { $0.string(1, link) } })
+        deliver(PB.build { pb in pb.message(90) { $0.string(1, link) } })
+    }
+
+    private func deliver(_ message: PB) {
+        guard let connection, connected else {
+            queued.append(message)
+            return start()
+        }
+        connection.send(message)
     }
 
     private func connect() async {
@@ -490,6 +499,7 @@ final class ATVRemote {
 
     private func closed(_ reason: String?) {
         let wasConnected = connected
+        debugLog("androidtv: conexão caiu\(reason.map { " (\($0))" } ?? "")")
         connection = nil
         connected = false
         // TLS que cai antes da TV mandar a configuração = certificado não reconhecido.
@@ -529,6 +539,8 @@ final class ATVRemote {
             needsPairing = false
             failures = 0
             debugLog("androidtv: conectado a \(host)")
+            queued.forEach { connection.send($0) }
+            queued = []
             onChange?()
         } else if let ping = message.message(8) {
             connection.send(PB.build { pb in pb.message(9) { $0.int(1, ping.int(1)) } })
@@ -540,7 +552,7 @@ final class ATVRemote {
             onChange?()
         } else if let ime = message.message(20), let info = ime.message(1) {
             let package = info.string(12)
-            if !package.isEmpty { app = package; onChange?() }
+            if !package.isEmpty, package != app { app = package; debugLog("androidtv: app aberto \(package)"); onChange?() }
         }
     }
 }
