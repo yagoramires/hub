@@ -188,6 +188,7 @@ struct TVRemoteView: View {
     @FocusState private var focused: Bool
     @Local private var apps = TVApps.load()
     @Local private var text = ""
+    @FocusState private var typing: Bool
 
     private func sendText() {
         guard !text.isEmpty else { return }
@@ -226,8 +227,15 @@ struct TVRemoteView: View {
 
             Panel(title: "Digitar") {
                 HStack(spacing: 6) {
-                    TextField("Selecione a busca na TV e digite aqui", text: $text)
+                    // Tecla de busca do Android: abre a busca do app aberto (ou a do Google TV, se o app não tiver).
+                    RoundKey(symbol: "magnifyingglass", size: 26, tint: Theme.accent(.tv)) {
+                        store.tvKey(device, .search)
+                        typing = true
+                    }
+                    .help("Abrir a busca na TV")
+                    TextField("Toque na lupa e digite aqui", text: $text)
                         .textFieldStyle(.roundedBorder)
+                        .focused($typing)
                         .onSubmit(sendText)
                     RoundKey(symbol: "delete.left", size: 26) { store.tvKey(device, .delete) }
                         .help("Apagar uma letra")

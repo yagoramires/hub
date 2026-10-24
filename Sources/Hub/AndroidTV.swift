@@ -427,7 +427,7 @@ final class ATVRemote {
     enum Key: Int {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
         case volumeUp = 24, volumeDown = 25, power = 26, menu = 82, playPause = 85, mute = 164
-        case settings = 176, input = 178, delete = 67, enter = 66
+        case settings = 176, input = 178, delete = 67, enter = 66, search = 84
     }
 
     let host: String
