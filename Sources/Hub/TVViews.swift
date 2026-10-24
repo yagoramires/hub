@@ -187,6 +187,13 @@ struct TVRemoteView: View {
     let device: HubDevice
     @FocusState private var focused: Bool
     @Local private var apps = TVApps.load()
+    @Local private var text = ""
+
+    private func sendText() {
+        guard !text.isEmpty else { return }
+        store.tvType(device, text)
+        text = ""
+    }
 
     private func update(_ list: [TVApps.App]) {
         apps = list
@@ -215,6 +222,19 @@ struct TVRemoteView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
+            }
+
+            Panel(title: "Digitar") {
+                HStack(spacing: 6) {
+                    TextField("Selecione a busca na TV e digite aqui", text: $text)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(sendText)
+                    RoundKey(symbol: "delete.left", size: 26) { store.tvKey(device, .delete) }
+                        .help("Apagar uma letra")
+                    RoundKey(symbol: "paperplane.fill", size: 26, tint: Theme.accent(.tv), action: sendText)
+                        .help("Mandar para a TV")
+                }
+                .controlSize(.small)
             }
 
             Panel(title: "Apps") {

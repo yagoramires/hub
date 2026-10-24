@@ -280,6 +280,15 @@ final class HubStore: ObservableObject {
         remote.send(key)
     }
 
+    func tvType(_ device: HubDevice, _ text: String) {
+        guard case .androidTV(let host) = device.source else { return }
+        Task {
+            if !(await ADB.type(text, host: host)) {
+                error = "Para digitar na TV, ligue a depuração por Wi‑Fi nas Opções do desenvolvedor."
+            }
+        }
+    }
+
     func tvLaunch(_ device: HubDevice, _ link: String) {
         guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
         debugLog("androidtv: abrir \(link)")

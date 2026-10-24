@@ -12,6 +12,11 @@ enum DebugCLI {
             try? await Task.sleep(for: .seconds(8))
             return print("app na TV: \(remote.app ?? "não informado")")
         }
+        if arguments.first == "--selftest" {
+            assert(ADB.inputText("Ação 2'") == "Acao%s2'\\''", ADB.inputText("Ação 2'"))
+            assert(ADB.inputText("Stranger Things") == "Stranger%sThings")
+            return print("✓ selftest")
+        }
         if arguments.first == "--atv-scan" {
             let found = await ATVDiscovery().scan()
             return print(found.isEmpty ? "nenhuma TV com a porta 6466" : found.map { "\($0.name) → \($0.host)" }.joined(separator: "\n"))

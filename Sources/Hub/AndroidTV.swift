@@ -427,7 +427,7 @@ final class ATVRemote {
     enum Key: Int {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
         case volumeUp = 24, volumeDown = 25, power = 26, menu = 82, playPause = 85, mute = 164
-        case settings = 176, input = 178
+        case settings = 176, input = 178, delete = 67, enter = 66
     }
 
     let host: String
@@ -687,6 +687,25 @@ enum ADB {
         let lines = await run(["devices"]).split(separator: "\n").map { $0.split(separator: "\t") }
         let ready = lines.filter { $0.count == 2 && $0[1] == "device" }.map { String($0[0]) }
         return ready.first { $0.hasPrefix(host) } ?? ready.first { $0.contains("_adb-tls-connect") }
+    }
+
+    /// Digita no campo selecionado na TV. O `input text` do Android só aceita ASCII, então tira
+    /// os acentos; espaço vira %s e o resto vai entre aspas simples para o shell da TV.
+    static func type(_ text: String, host: String) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
+        let safe = inputText(text)
+        guard !safe.isEmpty else { return false }
+        let output = await run(["-s", target, "shell", "input text '\(safe)'"])
+        if !output.isEmpty { debugLog("adb: digitar falhou (\(output.prefix(120)))") }
+        return output.isEmpty
+    }
+
+    /// "Ação 2'" → `Acao%s2'\''` (sem acento, espaço como %s, aspa simples escapada para o shell).
+    static func inputText(_ text: String) -> String {
+        (text.applyingTransform(.stripDiacritics, reverse: false) ?? text)
+            .unicodeScalars.filter(\.isASCII).map(String.init).joined()
+            .replacingOccurrences(of: " ", with: "%s")
+            .replacingOccurrences(of: "'", with: "'\\''")
     }
 
     static func pair(host: String, port: String, code: String) async -> String {
