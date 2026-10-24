@@ -708,6 +708,22 @@ enum ADB {
             .replacingOccurrences(of: "'", with: "'\\''")
     }
 
+    /// Tecla pelo ADB: no teclado da busca a TV ignora o apagar que chega pelo protocolo do controle.
+    static func key(_ code: Int, host: String) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
+        return await run(["-s", target, "shell", "input keyevent \(code)"]).isEmpty
+    }
+
+    /// Espera o teclado da TV aparecer (até 4 s) e digita; mais rápido que uma espera fixa.
+    static func typeWhenReady(_ text: String, host: String) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
+        for _ in 0..<16 {
+            if await run(["-s", target, "shell", "dumpsys input_method | grep -c mInputShown=true"]).hasPrefix("1") { break }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return await type(text, host: host)
+    }
+
     /// Busca do Globoplay, o único app da TV que declara ACTION_SEARCH.
     static func search(_ query: String, package: String, host: String) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }

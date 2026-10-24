@@ -289,6 +289,13 @@ final class HubStore: ObservableObject {
         }
     }
 
+    func tvDelete(_ device: HubDevice) {
+        guard case .androidTV(let host) = device.source else { return }
+        Task {
+            if !(await ADB.key(ATVRemote.Key.delete.rawValue, host: host)) { tvKey(device, .delete) }
+        }
+    }
+
     /// Busca no app que está aberto na TV: link de busca do app (sem ADB) ou, no Globoplay, a busca do Android.
     func tvSearch(_ device: HubDevice, _ query: String) {
         guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
@@ -299,8 +306,7 @@ final class HubStore: ObservableObject {
             // O Max abre a busca mas ignora o texto do link: espera a tela e digita pelo ADB.
             guard TVApps.typesAfterSearch.contains(package), !query.isEmpty else { return }
             Task {
-                try? await Task.sleep(for: .seconds(2.5))
-                if !(await ADB.type(query, host: host)) {
+                if !(await ADB.typeWhenReady(query, host: host)) {
                     error = "Abri a busca, mas não consegui digitar: ligue a depuração por Wi‑Fi na TV."
                 }
             }

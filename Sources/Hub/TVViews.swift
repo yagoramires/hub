@@ -270,7 +270,7 @@ struct TVRemoteView: View {
                             .help("Limpar")
                         }
                         Divider().frame(height: 16)
-                        Button { store.tvKey(device, .delete) } label: {
+                        Button { store.tvDelete(device) } label: {
                             Image(systemName: "delete.left").font(.system(size: 12, weight: .semibold))
                         }
                         .buttonStyle(.plain)
@@ -342,6 +342,8 @@ struct TVRemoteView: View {
         .focused($focused)
         .onAppear { focused = true }
         .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, .delete, .escape]) { press in
+            // Digitando na caixa de busca, as teclas são da caixa, não do controle.
+            if typing { return .ignored }
             switch press.key {
             case .upArrow: store.tvKey(device, .up)
             case .downArrow: store.tvKey(device, .down)
