@@ -666,8 +666,10 @@ enum ADB {
 
     static func launch(package: String, host: String) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path) else { return false }
-        let target = "\(host):5555"
-        _ = await run(["connect", target])
+        guard let target = await device(host: host) else {
+            debugLog("adb: TV não encontrada (depuração desligada ou não pareada)")
+            return false
+        }
         // Apps de TV declaram LEANBACK_LAUNCHER; alguns só têm o LAUNCHER comum.
         for category in ["android.intent.category.LEANBACK_LAUNCHER", "android.intent.category.LAUNCHER"] {
             let output = await run(["-s", target, "shell", "monkey", "-p", package, "-c", category, "1"])
@@ -676,6 +678,19 @@ enum ADB {
             if output.contains("unauthorized") || output.contains("failed to connect") || output.contains("not found") { break }
         }
         return false
+    }
+
+    /// Depuração clássica (porta 5555) ou "depuração por Wi‑Fi" do Android 11+, que o adb acha
+    /// sozinho pelo mDNS depois do pareamento (adb pair) e cuja porta muda a cada vez.
+    private static func device(host: String) async -> String? {
+        _ = await run(["connect", "\(host):5555"])
+        let lines = await run(["devices"]).split(separator: "\n").map { $0.split(separator: "\t") }
+        let ready = lines.filter { $0.count == 2 && $0[1] == "device" }.map { String($0[0]) }
+        return ready.first { $0.hasPrefix(host) } ?? ready.first { $0.contains("_adb-tls-connect") }
+    }
+
+    static func pair(host: String, port: String, code: String) async -> String {
+        await run(["pair", "\(host):\(port)", code])
     }
 
     private static func run(_ arguments: [String]) async -> String {
