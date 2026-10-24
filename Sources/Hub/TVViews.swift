@@ -198,11 +198,12 @@ struct TVRemoteView: View {
             Panel(title: "Controle") {
                 VStack(spacing: 14) {
                     dpad
-                    HStack(spacing: 18) {
+                    HStack(spacing: 14) {
                         labeled("Voltar", "arrow.uturn.backward") { store.tvKey(device, .back) }
                         labeled("Início", "house.fill") { store.tvKey(device, .home) }
                         labeled("Play", "playpause.fill") { store.tvKey(device, .playPause) }
                         labeled("Entrada", "rectangle.connected.to.line.below") { store.tvKey(device, .input) }
+                        labeled("Ajustes", "gearshape.fill") { store.tvKey(device, .settings) }
                     }
                     HStack(spacing: 8) {
                         RoundKey(symbol: device.status["muted"]?.bool == true ? "speaker.slash.fill" : "speaker.fill") {
