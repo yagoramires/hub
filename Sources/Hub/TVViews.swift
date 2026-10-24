@@ -203,6 +203,16 @@ struct TVRemoteView: View {
     @Local private var text = ""
     @FocusState private var typing: Bool
 
+    private var package: String { device.status["app"]?.string ?? "" }
+    private var appName: String { TVApps.name(of: package) ?? "app" }
+    private var canSearch: Bool { TVApps.searchLink(package: package, query: "") != nil || package == "com.globo.globotv" }
+
+    private func search() {
+        guard !text.isEmpty else { return }
+        store.tvSearch(device, text)
+        text = ""
+    }
+
     private func sendText() {
         guard !text.isEmpty else { return }
         store.tvType(device, text)
@@ -238,25 +248,50 @@ struct TVRemoteView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            Panel(title: "Digitar") {
-                HStack(spacing: 6) {
-                    // Tecla de busca do Android: abre a busca do app aberto (ou a do Google TV, se o app não tiver).
-                    TextField("Digite; 🔍 busca no app aberto, Enter digita na TV", text: $text)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($typing)
-                        .onSubmit(sendText)
-                    RoundKey(symbol: "delete.left", size: 26) { store.tvKey(device, .delete) }
-                        .help("Apagar uma letra")
-                    RoundKey(symbol: "magnifyingglass", size: 26, tint: Theme.accent(.tv)) {
-                        guard !text.isEmpty else { return typing = true }
-                        store.tvSearch(device, text)
-                        text = ""
+            Panel(title: "Buscar e digitar") {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(typing ? Theme.accent(.tv) : .secondary)
+                        TextField("O que você quer ver?", text: $text)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .focused($typing)
+                            .onSubmit { canSearch ? search() : sendText() }
+                        if !text.isEmpty {
+                            Button { text = "" } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Limpar")
+                        }
+                        Divider().frame(height: 16)
+                        Button { store.tvKey(device, .delete) } label: {
+                            Image(systemName: "delete.left").font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Apagar uma letra na TV")
                     }
-                    .help("Buscar no app aberto na TV")
-                    RoundKey(symbol: "paperplane.fill", size: 26, action: sendText)
-                        .help("Digitar no campo selecionado na TV")
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+                    .overlay(Capsule().strokeBorder(typing ? Theme.accent(.tv).opacity(0.7) : .clear, lineWidth: 1.5))
+                    .animation(.easeOut(duration: 0.15), value: typing)
+
+                    HStack(spacing: 8) {
+                        PillButton(title: canSearch ? "Buscar no \(appName)" : "Buscar", symbol: "magnifyingglass",
+                                   filled: true, enabled: canSearch && !text.isEmpty, action: search)
+                        PillButton(title: "Digitar na TV", symbol: "keyboard", filled: false,
+                                   enabled: !text.isEmpty, action: sendText)
+                    }
+                    if !canSearch {
+                        Text("\(appName == "app" ? "Esse app" : appName) não aceita busca direta: abra a busca na TV e use Digitar.")
+                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                .controlSize(.small)
             }
 
             Panel(title: "Apps") {
@@ -435,5 +470,29 @@ struct TVSettingsPanel: View {
                 Button("Procurar TV") { store.scanTVs() }.controlSize(.small)
             }
         }
+    }
+}
+
+/// Botão em pílula: cheio para a ação principal, discreto para a secundária.
+struct PillButton: View {
+    let title: String
+    let symbol: String
+    var filled = true
+    var enabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .foregroundStyle(filled ? .white : .primary)
+                .background(Capsule().fill(filled ? Theme.accent(.tv) : Color.primary.opacity(0.08)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressStyle())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
     }
 }
