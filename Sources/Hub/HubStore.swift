@@ -289,6 +289,19 @@ final class HubStore: ObservableObject {
         }
     }
 
+    /// Busca no app que está aberto na TV: link de busca do app (sem ADB) ou, no Globoplay, a busca do Android.
+    func tvSearch(_ device: HubDevice, _ query: String) {
+        guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
+        let package = device.status["app"]?.string ?? ""
+        debugLog("androidtv: buscar no app \(package)")
+        if let link = TVApps.searchLink(package: package, query: query) { return remote.launch(link) }
+        Task {
+            if await ADB.search(query, package: package, host: host) { return }
+            let app = TVApps.name(of: package) ?? "Esse app"
+            error = "\(app) não aceita busca direta. Abra a busca dele e use o botão de digitar (✈︎)."
+        }
+    }
+
     func tvLaunch(_ device: HubDevice, _ link: String) {
         guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
         debugLog("androidtv: abrir \(link)")

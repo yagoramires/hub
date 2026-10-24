@@ -427,7 +427,7 @@ final class ATVRemote {
     enum Key: Int {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
         case volumeUp = 24, volumeDown = 25, power = 26, menu = 82, playPause = 85, mute = 164
-        case settings = 176, input = 178, delete = 67, enter = 66, search = 84
+        case settings = 176, input = 178, delete = 67, enter = 66
     }
 
     let host: String
@@ -706,6 +706,14 @@ enum ADB {
             .unicodeScalars.filter(\.isASCII).map(String.init).joined()
             .replacingOccurrences(of: " ", with: "%s")
             .replacingOccurrences(of: "'", with: "'\\''")
+    }
+
+    /// Busca do Globoplay, o único app da TV que declara ACTION_SEARCH.
+    static func search(_ query: String, package: String, host: String) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
+        let quoted = "'" + query.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let output = await run(["-s", target, "shell", "am start -a android.intent.action.SEARCH -p \(package) --es query \(quoted)"])
+        return output.contains("Starting") && !output.contains("Error")
     }
 
     static func pair(host: String, port: String, code: String) async -> String {

@@ -49,6 +49,19 @@ enum TVApps {
         UserDefaults.standard.set(try? JSONEncoder().encode(apps), forKey: key)
     }
 
+    /// Link de busca de cada app (conferido com `cmd package query-activities` na TCL).
+    static func searchLink(package: String, query: String) -> String? {
+        let q = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? query
+        return switch package {
+        case "com.google.android.youtube.tv": "https://www.youtube.com/results?search_query=\(q)"
+        case "com.netflix.ninja": "nflx://www.netflix.com/search?q=\(q)"
+        case "com.amazon.amazonvideo.livingroom": "https://app.primevideo.com/search?phrase=\(q)"
+        case "com.disney.disneyplus": "https://www.disneyplus.com/search?q=\(q)"
+        case "com.wbd.stream": "https://play.hbomax.com/search?q=\(q)"
+        default: nil
+        }
+    }
+
     static func name(of package: String) -> String? {
         let known = [
             "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix",
@@ -228,19 +241,20 @@ struct TVRemoteView: View {
             Panel(title: "Digitar") {
                 HStack(spacing: 6) {
                     // Tecla de busca do Android: abre a busca do app aberto (ou a do Google TV, se o app não tiver).
-                    RoundKey(symbol: "magnifyingglass", size: 26, tint: Theme.accent(.tv)) {
-                        store.tvKey(device, .search)
-                        typing = true
-                    }
-                    .help("Abrir a busca na TV")
-                    TextField("Toque na lupa e digite aqui", text: $text)
+                    TextField("Digite; 🔍 busca no app aberto, Enter digita na TV", text: $text)
                         .textFieldStyle(.roundedBorder)
                         .focused($typing)
                         .onSubmit(sendText)
                     RoundKey(symbol: "delete.left", size: 26) { store.tvKey(device, .delete) }
                         .help("Apagar uma letra")
-                    RoundKey(symbol: "paperplane.fill", size: 26, tint: Theme.accent(.tv), action: sendText)
-                        .help("Mandar para a TV")
+                    RoundKey(symbol: "magnifyingglass", size: 26, tint: Theme.accent(.tv)) {
+                        guard !text.isEmpty else { return typing = true }
+                        store.tvSearch(device, text)
+                        text = ""
+                    }
+                    .help("Buscar no app aberto na TV")
+                    RoundKey(symbol: "paperplane.fill", size: 26, action: sendText)
+                        .help("Digitar no campo selecionado na TV")
                 }
                 .controlSize(.small)
             }
