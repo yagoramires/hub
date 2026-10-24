@@ -294,7 +294,18 @@ final class HubStore: ObservableObject {
         guard case .androidTV(let host) = device.source, let remote = tvs[host] else { return }
         let package = device.status["app"]?.string ?? ""
         debugLog("androidtv: buscar no app \(package)")
-        if let link = TVApps.searchLink(package: package, query: query) { return remote.launch(link) }
+        if let link = TVApps.searchLink(package: package, query: query) {
+            remote.launch(link)
+            // O Max abre a busca mas ignora o texto do link: espera a tela e digita pelo ADB.
+            guard TVApps.typesAfterSearch.contains(package) else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                if !(await ADB.type(query, host: host)) {
+                    error = "Abri a busca, mas não consegui digitar: ligue a depuração por Wi‑Fi na TV."
+                }
+            }
+            return
+        }
         Task {
             if await ADB.search(query, package: package, host: host) { return }
             let app = TVApps.name(of: package) ?? "Esse app"

@@ -49,6 +49,9 @@ enum TVApps {
         UserDefaults.standard.set(try? JSONEncoder().encode(apps), forKey: key)
     }
 
+    /// Apps que abrem a busca pelo link mas ignoram o texto; o Hub digita depois.
+    static let typesAfterSearch: Set<String> = ["com.wbd.stream"]
+
     /// Link de busca de cada app (conferido com `cmd package query-activities` na TCL).
     static func searchLink(package: String, query: String) -> String? {
         let q = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? query
@@ -57,7 +60,7 @@ enum TVApps {
         case "com.netflix.ninja": "nflx://www.netflix.com/search?q=\(q)"
         case "com.amazon.amazonvideo.livingroom": "https://app.primevideo.com/search?phrase=\(q)"
         case "com.disney.disneyplus": "https://www.disneyplus.com/search?q=\(q)"
-        case "com.wbd.stream": "https://play.hbomax.com/search?q=\(q)"
+        case "com.wbd.stream": "https://play.hbomax.com/search"
         default: nil
         }
     }
