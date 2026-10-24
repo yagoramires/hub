@@ -53,11 +53,11 @@ enum TVApps {
     static let typesAfterSearch: Set<String> = ["com.wbd.stream"]
 
     /// Link de busca de cada app (conferido com `cmd package query-activities` na TCL).
+    /// A Netflix aceita o link nflx://…/search mas ignora, aberta ou não (testado em 2026-10-24).
     static func searchLink(package: String, query: String) -> String? {
         let q = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? query
         return switch package {
         case "com.google.android.youtube.tv": "https://www.youtube.com/results?search_query=\(q)"
-        case "com.netflix.ninja": "nflx://www.netflix.com/search?q=\(q)"
         case "com.amazon.amazonvideo.livingroom": "https://app.primevideo.com/search?phrase=\(q)"
         case "com.disney.disneyplus": "https://www.disneyplus.com/search?q=\(q)"
         case "com.wbd.stream": "https://play.hbomax.com/search"
