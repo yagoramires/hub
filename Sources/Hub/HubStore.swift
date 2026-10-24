@@ -297,7 +297,7 @@ final class HubStore: ObservableObject {
         if let link = TVApps.searchLink(package: package, query: query) {
             remote.launch(link)
             // O Max abre a busca mas ignora o texto do link: espera a tela e digita pelo ADB.
-            guard TVApps.typesAfterSearch.contains(package) else { return }
+            guard TVApps.typesAfterSearch.contains(package), !query.isEmpty else { return }
             Task {
                 try? await Task.sleep(for: .seconds(2.5))
                 if !(await ADB.type(query, host: host)) {
@@ -309,7 +309,7 @@ final class HubStore: ObservableObject {
         Task {
             if await ADB.search(query, package: package, host: host) { return }
             let app = TVApps.name(of: package) ?? "Esse app"
-            error = "\(app) não aceita busca direta. Abra a busca dele e use o botão de digitar (✈︎)."
+            error = "\(app) não aceita busca direta. Abra a busca dele e use Enviar texto."
         }
     }
 

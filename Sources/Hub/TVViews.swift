@@ -210,8 +210,8 @@ struct TVRemoteView: View {
     private var appName: String { TVApps.name(of: package) ?? "app" }
     private var canSearch: Bool { TVApps.searchLink(package: package, query: "") != nil || package == "com.globo.globotv" }
 
+    /// Com texto, busca direto; vazio, só abre a busca do app.
     private func search() {
-        guard !text.isEmpty else { return }
         store.tvSearch(device, text)
         text = ""
     }
@@ -285,12 +285,12 @@ struct TVRemoteView: View {
 
                     HStack(spacing: 8) {
                         PillButton(title: canSearch ? "Buscar no \(appName)" : "Buscar", symbol: "magnifyingglass",
-                                   filled: true, enabled: canSearch && !text.isEmpty, action: search)
-                        PillButton(title: "Digitar na TV", symbol: "keyboard", filled: false,
+                                   filled: true, enabled: canSearch, action: search)
+                        PillButton(title: "Enviar texto", symbol: "paperplane.fill", filled: false,
                                    enabled: !text.isEmpty, action: sendText)
                     }
                     if !canSearch {
-                        Text("\(appName == "app" ? "Esse app" : appName) não aceita busca direta: abra a busca na TV e use Digitar.")
+                        Text("\(appName == "app" ? "Esse app" : appName) não aceita busca direta: abra a busca na TV e use Enviar texto.")
                             .font(.system(size: 10.5)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
