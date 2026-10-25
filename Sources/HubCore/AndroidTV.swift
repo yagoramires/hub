@@ -113,8 +113,8 @@ enum ATVError: LocalizedError {
 /// Chave RSA e certificado autoassinado, gerados uma vez com o openssl do sistema e guardados ao
 /// lado das credenciais. A identidade é importada só em memória (sem tocar no Keychain).
 enum ATVIdentity {
-    private static let dir = Credentials.url.deletingLastPathComponent()
-    private static let p12 = dir.appendingPathComponent("androidtv.p12")
+    private static var dir: URL { Credentials.url.deletingLastPathComponent() }
+    private static var p12: URL { dir.appendingPathComponent("androidtv.p12") }
     private static let password = "hub"
     private static var cached: (identity: SecIdentity, modulus: Data, exponent: Data)?
 
@@ -429,7 +429,7 @@ private extension Data {
 // MARK: Controle (porta 6466)
 
 @MainActor
-final class ATVRemote {
+package final class ATVRemote {
     enum Key: Int {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
         case volumeUp = 24, volumeDown = 25, power = 26, playPause = 85, mute = 164
@@ -440,7 +440,7 @@ final class ATVRemote {
     private(set) var connected = false
     private(set) var isOn: Bool?
     private(set) var volume: (level: Int, max: Int, muted: Bool)?
-    private(set) var app: String?
+    package private(set) var app: String?
     /// A TV recusou nosso certificado: precisa parear de novo.
     private(set) var needsPairing = false
     var onChange: (() -> Void)?
@@ -455,11 +455,11 @@ final class ATVRemote {
     /// Mais velhos são descartados: dois toques no power viravam liga-e-desliga minutos depois.
     private var queued: [(message: PB, at: Date)] = []
 
-    init(host: String) {
+    package init(host: String) {
         self.host = host
     }
 
-    func start() {
+    package func start() {
         stopped = false
         guard connection == nil else { return }
         reconnect?.cancel()
@@ -479,7 +479,7 @@ final class ATVRemote {
         deliver(PB.build { pb in pb.message(10) { inject in inject.int(1, key.rawValue); inject.int(2, 3) } })
     }
 
-    func launch(_ link: String) {
+    package func launch(_ link: String) {
         deliver(PB.build { pb in pb.message(90) { $0.string(1, link) } })
     }
 
@@ -567,23 +567,26 @@ final class ATVRemote {
 
 /// Procura TVs anunciando _androidtvremote2._tcp e resolve o IPv4 de cada uma.
 @MainActor
-final class ATVDiscovery {
-    struct Found: Identifiable, Equatable {
-        let name: String
-        let host: String
-        var id: String { host }
+package final class ATVDiscovery {
+    package struct Found: Identifiable, Equatable {
+        package let name: String
+        package let host: String
+        package var id: String { host }
     }
 
     private var probes: [NWConnection] = []
+    private var browsers: [NWBrowser] = []
 
     /// A TCL, por exemplo, não anuncia _androidtvremote2, só AirPlay, HomeKit e Cast. Então procura
     /// em todos e fica com quem tem a porta 6466 aberta.
-    func scan(seconds: Double = 5) async -> [Found] {
+    package init() {}
+
+    package func scan(seconds: Double = 5) async -> [Found] {
         var candidates: [Found] = []
         var ranks: [String: Int] = [:]
         // Em ordem de preferência para o nome: o do AirPlay/HomeKit é o que o usuário escolheu.
         let types = ["_airplay._tcp", "_hap._tcp", "_androidtvremote2._tcp", "_googlecast._tcp"]
-        let browsers = types.map { NWBrowser(for: .bonjour(type: $0, domain: nil), using: .tcp) }
+        browsers = types.map { NWBrowser(for: .bonjour(type: $0, domain: nil), using: .tcp) }
         for browser in browsers {
             browser.browseResultsChangedHandler = { [weak self, browser] results, _ in
                 MainActor.assumeIsolated {
@@ -605,14 +608,20 @@ final class ATVDiscovery {
             browser.start(queue: .main)
         }
         try? await Task.sleep(for: .seconds(seconds))
-        browsers.forEach { $0.cancel() }
-        probes.forEach { $0.cancel() }
-        probes = []
+        cancel()
         var found: [Found] = []
         for candidate in candidates where await Self.isOpen(host: candidate.host, port: 6466) {
             found.append(candidate)
         }
         return found
+    }
+
+    /// Para a busca na rede (fim do scan ou `stop()` do Hub).
+    func cancel() {
+        browsers.forEach { $0.cancel() }
+        browsers = []
+        probes.forEach { $0.cancel() }
+        probes = []
     }
 
     static func isOpen(host: String, port: UInt16) async -> Bool {

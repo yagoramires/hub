@@ -2,11 +2,11 @@ import Foundation
 
 /// Junta as nuvens numa lista só, mantém os tokens e manda os comandos.
 @MainActor
-final class HubStore: ObservableObject {
-    @Published private(set) var devices: [HubDevice] = []
+package final class HubStore: ObservableObject {
+    @Published package private(set) var devices: [HubDevice] = []
     @Published private(set) var loading = false
     @Published private(set) var loadedOnce = false
-    @Published var error: String?
+    @Published package var error: String?
     @Published private(set) var credentials: Credentials
     @Published private(set) var pairing: Pairing?
 
@@ -45,6 +45,7 @@ final class HubStore: ObservableObject {
     private var pairingTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var pollTimer: Timer?
+    private var tokenTimer: Timer?
     private var followUp: Task<Void, Never>?
     private var volumeTask: Task<Void, Never>?
     /// Comandos do ADB um depois do outro: em paralelo, o texto podia sair antes dos apagares.
@@ -55,7 +56,7 @@ final class HubStore: ObservableObject {
         adbQueue = Task { await previous?.value; await work() }
     }
 
-    init(sample: Bool = false) {
+    package init(sample: Bool = false) {
         credentials = Credentials()
         if sample { loadSample(); return }
         credentials = .load()
@@ -64,7 +65,7 @@ final class HubStore: ObservableObject {
         }
         rebuildClients()
         // O refresh token do SmartThings vence se ficar 30 dias sem uso.
-        Timer.scheduledTimer(withTimeInterval: 12 * 60 * 60, repeats: true) { [weak self] _ in
+        tokenTimer = Timer.scheduledTimer(withTimeInterval: 12 * 60 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in try? await self?.smartThings?.refreshIfNeeded(force: true) }
         }
     }
@@ -132,20 +133,46 @@ final class HubStore: ObservableObject {
 
     // MARK: Atualização
 
+    /// Quem está olhando (popover, tela do Hub): o timer de 10 s roda enquanto tiver alguém.
+    private var watchers = 0
+
     func startPolling() {
+        watchers += 1
         Task { await refresh() }
-        pollTimer?.invalidate()
+        guard pollTimer == nil else { return }
         pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
     }
 
     func stopPolling() {
+        watchers = max(watchers - 1, 0)
+        guard watchers == 0 else { return }
         pollTimer?.invalidate()
         pollTimer = nil
     }
 
-    func refresh() async {
+    var polling: Bool { pollTimer != nil }
+    var timersRunning: Bool { pollTimer != nil || tokenTimer != nil }
+    var tvConnections: Int { tvs.count }
+
+    /// Desinstalar no NeyHub (e fechar o avulso): para os timers de 10 s e 12 h, a busca de TVs, as conexões com as TVs,
+    /// o pareamento e o que estava esperando para rodar.
+    func stop() {
+        watchers = 0
+        pollTimer?.invalidate()
+        pollTimer = nil
+        tokenTimer?.invalidate()
+        tokenTimer = nil
+        tvDiscovery.cancel()
+        tvPairingSession?.cancel()
+        tvPairingSession = nil
+        tvs.values.forEach { $0.stop() }
+        tvs = [:]
+        [pairingTask, followUp, volumeTask, adbQueue].forEach { $0?.cancel() }
+    }
+
+    package func refresh() async {
         if let refreshTask { return await refreshTask.value }
         let task = Task { @MainActor in await load() }
         refreshTask = task
@@ -420,7 +447,7 @@ final class HubStore: ObservableObject {
         updateTVs()
     }
 
-    func setTuya(_ device: HubDevice, _ code: String, _ value: Any) {
+    package func setTuya(_ device: HubDevice, _ code: String, _ value: Any) {
         setTuya(device, [(code, value)])
     }
 
@@ -437,7 +464,7 @@ final class HubStore: ObservableObject {
         }
     }
 
-    func stCommand(_ device: HubDevice, capability: String, command: String, arguments: [Any] = [],
+    package func stCommand(_ device: HubDevice, capability: String, command: String, arguments: [Any] = [],
                    optimistic: [String: DPValue] = [:]) {
         guard let smartThings else { return }
         apply(device.id, optimistic)
@@ -471,7 +498,7 @@ final class HubStore: ObservableObject {
     }
 
     /// JSON cru da nuvem Tuya, para o `Hub --raw`.
-    func rawTuya() async -> [[String: Any]] {
+    package func rawTuya() async -> [[String: Any]] {
         var all: [[String: Any]] = []
         for client in tuya.values {
             for home in (try? await client.homes()) ?? [] {
@@ -597,7 +624,7 @@ final class HubStore: ObservableObject {
     }
 
     /// Lê a saída JSON do `smartthings apps:create` e guarda Client ID e Secret junto das credenciais.
-    func importSmartThingsApp(file: String) -> Bool {
+    package func importSmartThingsApp(file: String) -> Bool {
         guard let data = FileManager.default.contents(atPath: file),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let id = json["oauthClientId"] as? String, let secret = json["oauthClientSecret"] as? String

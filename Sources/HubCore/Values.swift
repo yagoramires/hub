@@ -1,7 +1,7 @@
 import Foundation
 
 /// Valor de um ponto de dados (Tuya) ou atributo (SmartThings), já tipado.
-enum DPValue: Equatable, CustomStringConvertible {
+package enum DPValue: Equatable, CustomStringConvertible {
     case bool(Bool), int(Int), double(Double), string(String), other(String)
 
     init(_ any: Any?) {
@@ -58,7 +58,7 @@ enum DPValue: Equatable, CustomStringConvertible {
         (json as? [Any])?.compactMap { $0 as? String } ?? []
     }
 
-    var description: String {
+    package var description: String {
         switch self {
         case .bool(let value): "\(value)"
         case .int(let value): "\(value)"
@@ -70,16 +70,16 @@ enum DPValue: Equatable, CustomStringConvertible {
 }
 
 /// O que um ponto de dados Tuya aceita: tipo, faixa, escala e opções.
-struct DPSpec: Equatable {
-    var code: String
-    var type: String
+package struct DPSpec: Equatable {
+    package var code: String
+    package var type: String
     var name: String
-    var min = 0.0
-    var max = 0.0
-    var scale = 0
+    package var min = 0.0
+    package var max = 0.0
+    package var scale = 0
     var step = 1.0
-    var unit = ""
-    var range: [String] = []
+    package var unit = ""
+    package var range: [String] = []
 
     init(json: [String: Any]) {
         code = json["code"] as? String ?? ""
@@ -100,8 +100,8 @@ struct DPSpec: Equatable {
     }
 
     var isBool: Bool { type == "Boolean" }
-    var isInteger: Bool { type == "Integer" }
-    var isEnum: Bool { type == "Enum" }
+    package var isInteger: Bool { type == "Integer" }
+    package var isEnum: Bool { type == "Enum" }
 
     /// Valor cru do aparelho → valor que se mostra (ex.: 125 com escala 1 → 12,5).
     func scaled(_ raw: Double) -> Double { raw / pow(10, Double(scale)) }

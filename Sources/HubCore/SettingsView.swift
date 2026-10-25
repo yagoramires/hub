@@ -1,23 +1,25 @@
 import CoreImage.CIFilterBuiltins
+import NeyKit
 import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: HubStore
-    let back: () -> Void
+    @EnvironmentObject private var shell: Shell
+    /// nil nos ajustes do Hub dentro do NeyHub (não há para onde voltar).
+    let back: (() -> Void)?
 
-    @Local private var userCode = ""
-    @Local private var pairingApp = "Smart Life"
-    @Local private var clientId = ""
-    @Local private var clientSecret = ""
-    @Local private var token = ""
-    @Local private var showToken = false
-    @Local private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @ViewState private var userCode = ""
+    @ViewState private var pairingApp = "Smart Life"
+    @ViewState private var clientId = ""
+    @ViewState private var clientSecret = ""
+    @ViewState private var token = ""
+    @ViewState private var showToken = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                IconButton(symbol: "chevron.left", help: "Voltar", action: back)
+                if let back { IconButton(symbol: "chevron.left", help: "Voltar", action: back) }
                 Text("Ajustes").font(Theme.font(15, .semibold))
                 Spacer()
             }
@@ -29,18 +31,31 @@ struct SettingsView: View {
                     smartThingsPanel
                     TVSettingsPanel()
                     Panel(title: "App") {
-                        ToggleRow(title: "Abrir ao iniciar a sessão", isOn: launchAtLogin) { enabled in
-                            do {
-                                if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-                                launchAtLogin = enabled
-                            } catch {
-                                store.error = "Não consegui mudar a abertura automática: \(error.localizedDescription)"
+                        // Hospedado o login, o modo, a atualização e o Sair são do NeyHub.
+                        if shell.state.showsLogin { LoginRow() }
+                        if shell.state.showsPresence, let presence = shell.presence {
+                            ForEach([("Janela", \Presence.screen), ("Barra de menus", \Presence.menuBar)], id: \.0) { title, key in
+                                // Desligar os dois não vale: o outro volta a ligar (`normalized`).
+                                ToggleRow(title: title, isOn: presence[keyPath: key]) {
+                                    var next = presence
+                                    next[keyPath: key] = $0
+                                    shell.onPresence(next.normalized(hasScreen: true))
+                                }
                             }
+                        }
+                        if shell.state.showsUpdate {
+                            HStack {
+                                Text("Atualização pronta — entra ao sair").font(Theme.font(11.5))
+                                Spacer()
+                                Button("Reiniciar agora") { shell.relaunch() }.accessibilityLabel("Reiniciar o Hub agora")
+                            }
+                            .controlSize(.small)
                         }
                         HStack {
                             Button("Abrir registro") { NSWorkspace.shared.open(Log.url) }
                             Spacer()
-                            Button("Sair do Hub") { NSApp.terminate(nil) }
+                            Text("Hub \(shell.state.version)").font(Theme.font(11)).foregroundStyle(.secondary)
+                            if shell.state.showsQuit { Button("Sair do Hub") { NSApp.terminate(nil) } }
                         }
                         .controlSize(.small)
                     }
@@ -177,6 +192,23 @@ struct SettingsView: View {
                     }
                     .controlSize(.small)
                 }
+            }
+        }
+    }
+}
+
+/// Abrir ao iniciar a sessão: só no avulso (o NeyHub nunca chama o SMAppService pelo Hub).
+private struct LoginRow: View {
+    @EnvironmentObject private var store: HubStore
+    @ViewState private var launchAtLogin = SMAppService.mainApp.status == .enabled
+
+    var body: some View {
+        ToggleRow(title: "Abrir ao iniciar a sessão", isOn: launchAtLogin) { enabled in
+            do {
+                if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                launchAtLogin = enabled
+            } catch {
+                store.error = "Não consegui mudar a abertura automática: \(error.localizedDescription)"
             }
         }
     }

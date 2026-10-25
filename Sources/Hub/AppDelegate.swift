@@ -1,73 +1,75 @@
 import AppKit
-import Combine
-import SwiftUI
+import HubCore
+import NeyKitApp
 
+/// Casca do avulso: o Hub em si mora no HubCore, o mesmo que o NeyHub carrega como plugin.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
-    private var statusItem: NSStatusItem!
-    private let popover = NSPopover()
-    private lazy var store = HubStore()
-    private var watch: AnyCancellable?
+final class HubAppDelegate: NSObject, NSApplicationDelegate {
+    private var hub: HubApp?
+    private var updater: Updater?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = icon(lit: false)
-        statusItem.button?.action = #selector(togglePopover)
-        statusItem.button?.target = self
+        if HubCheck.isHosted(id: "local.hub") && HubCheck.leaveForHub(id: "local.hub", name: "Hub") { return }
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let hub = HubApp(defaults: .standard, hosted: false, version: version, resources: Bundle.main.resourceURL)
+        hub.start()
+        setupMenu()
+        hub.applyPresence(hub.presence)
+        self.hub = hub
 
-        let host = NSHostingController(rootView: RootView().environmentObject(store))
-        host.sizingOptions = .preferredContentSize
-        popover.contentViewController = host
-        popover.behavior = .transient
-        popover.animates = true
-        popover.delegate = self
-
-        // Ícone cheio quando tem alguma coisa ligada.
-        watch = store.$devices.receive(on: RunLoop.main).sink { [weak self] _ in
-            guard let self else { return }
-            statusItem.button?.image = icon(lit: store.anyOn)
-        }
-
-        debugLog("iniciou · Hub \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") · macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        Task { @MainActor in
-            await store.refresh()
-            // open -n Hub.app --args --show: abre o popover sozinho, para conferir a interface com os aparelhos de verdade.
-            if CommandLine.arguments.contains("--show") { showPopover() }
-        }
-        if !store.hasAccounts {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.showPopover()
-                NotificationCenter.default.post(name: .hubOpenSettings, object: nil)
-            }
+        let updater = Updater(name: "Hub", repo: "yagoramires/hub", id: "local.hub")
+        hub.updateReady = updater.staged != nil
+        updater.onChange = { [weak hub, weak updater] in hub?.updateReady = updater?.staged != nil }
+        hub.onRelaunch = { [weak updater] in updater?.relaunchNow() }
+        updater.start()
+        self.updater = updater
+        // Toda abertura: mostra as novidades uma vez e limpa um preparado velho.
+        if let notes = Updater.notesAfterUpdate(id: "local.hub", current: version) {
+            WhatsNew.show(name: "Hub", version: version, notes: notes)
         }
     }
 
     /// hubmac://callback, o retorno do login do SmartThings.
     func application(_ application: NSApplication, open urls: [URL]) {
-        urls.forEach { OAuthWindow.shared.handle($0) }
-        showPopover()
+        urls.forEach { _ = hub?.handleURL($0) }
+        hub?.reveal()
     }
 
-    private func icon(lit: Bool) -> NSImage? {
-        let image = NSImage(systemSymbolName: lit ? "house.fill" : "house", accessibilityDescription: "Hub")
-        image?.isTemplate = true
-        return image
+    /// Para os timers e as conexões com as TVs antes de sair; a versão preparada entra agora.
+    func applicationWillTerminate(_ notification: Notification) {
+        hub?.stop()
+        _ = updater?.applyStaged()
     }
 
-    @objc private func togglePopover() {
-        popover.isShown ? popover.performClose(nil) : showPopover()
+    /// Clique no Dock (modo Tela) ou aberto de novo pelo Finder: traz a janela de volta.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard let hub, hub.presence.screen else { return true }
+        hub.showScreen()
+        return false
     }
 
-    private func showPopover() {
-        guard let button = statusItem.button else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
-        store.startPolling()
+    /// No modo Tela (com ícone no Dock) o menu do app é o caminho até os ajustes sem o ícone da barra.
+    private func setupMenu() {
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Ajustes…", action: #selector(showSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Sair do Hub", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let item = NSMenuItem()
+        item.submenu = appMenu
+        // Editar: sem ele ⌘C/⌘V/⌘Z não chegam aos campos de texto (código de usuário, Client ID, busca na TV).
+        let edit = NSMenu(title: "Editar")
+        for (title, action, key, mods) in [("Desfazer", "undo:", "z", NSEvent.ModifierFlags.command), ("Refazer", "redo:", "z", [.command, .shift]),
+                                           ("Recortar", "cut:", "x", .command), ("Copiar", "copy:", "c", .command),
+                                           ("Colar", "paste:", "v", .command), ("Selecionar tudo", "selectAll:", "a", .command)] {
+            edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key).keyEquivalentModifierMask = mods
+            if action == "redo:" { edit.addItem(.separator()) }
+        }
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        NSApp.mainMenu = NSMenu()
+        NSApp.mainMenu?.addItem(item)
+        NSApp.mainMenu?.addItem(editItem)
     }
 
-    func popoverDidClose(_ notification: Notification) {
-        store.stopPolling()
-        NotificationCenter.default.post(name: .hubPopoverClosed, object: nil)
-    }
+    @objc private func showSettings() { hub?.showSettings() }
 }

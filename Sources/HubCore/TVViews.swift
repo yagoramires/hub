@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 enum TVApps {
@@ -17,10 +18,10 @@ enum TVApps {
             link.hasPrefix(TVApps.launchPrefix) ? String(link.dropFirst(TVApps.launchPrefix.count)) : TVApps.linkPackages[link]
         }
 
-        /// Ícone da Play Store guardado em Resources/AppLogos; app sem ícone fica com o nome.
+        /// Ícone da Play Store guardado em `<resources>/AppLogos`; app sem ícone (ou sem a pasta) fica com o nome.
         var logo: NSImage? {
-            package.flatMap { Bundle.main.url(forResource: $0, withExtension: "png", subdirectory: "AppLogos") }
-                .flatMap(NSImage.init(contentsOf:))
+            guard let package, let folder = Theme.resources else { return nil }
+            return NSImage(contentsOf: folder.appendingPathComponent("AppLogos/\(package).png"))
         }
     }
 
@@ -54,13 +55,15 @@ enum TVApps {
     ]
 
     private static let key = "tvApps"
+    /// Os padrões do Hub: `.standard` no avulso, `AppDefaults.forApp("local.hub")` no NeyHub (o mesmo domínio).
+    static var userDefaults = UserDefaults.standard
     static let changed = Notification.Name("hubTVAppsChanged")
     /// Lida do disco uma vez; o resto do app usa esta cópia.
     private static var cached: [App]?
 
     static func load() -> [App] {
         if let cached { return cached }
-        let apps = (UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([App].self, from: $0) } ?? defaults)
+        let apps = (userDefaults.data(forKey: key).flatMap { try? JSONDecoder().decode([App].self, from: $0) } ?? defaults)
             // com.hbo.hbonow não existe nessa TV; o Max dela é com.wbd.stream (listas salvas com o nome errado).
             .map { $0.link == "market://launch?id=com.hbo.hbonow" ? App(name: $0.name, link: "market://launch?id=com.wbd.stream") : $0 }
         cached = apps
@@ -69,7 +72,7 @@ enum TVApps {
 
     static func save(_ apps: [App]) {
         cached = apps
-        UserDefaults.standard.set(try? JSONEncoder().encode(apps), forKey: key)
+        userDefaults.set(try? JSONEncoder().encode(apps), forKey: key)
         NotificationCenter.default.post(name: changed, object: nil)
     }
 
@@ -147,7 +150,7 @@ struct TVCard: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
     let open: () -> Void
-    @Local private var apps = TVApps.load()
+    @ViewState private var apps = TVApps.load()
 
     private var on: Bool { device.online && device.isOn }
     private var light: Color { device.tvLight(apps) }
@@ -225,7 +228,7 @@ struct VolumeSlider: View {
     let device: HubDevice
     let tint: Color
     var height: CGFloat = 34
-    @Local private var dragging: Double?
+    @ViewState private var dragging: Double? = nil
 
     var body: some View {
         let maximum = max(device.status["volume_max"]?.number ?? 100, 1)
@@ -308,10 +311,10 @@ struct TVRemoteView: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
     @FocusState private var focused: Bool
-    @Local private var apps = TVApps.load()
-    @Local private var text = ""
+    @ViewState private var apps = TVApps.load()
+    @ViewState private var text = ""
     @FocusState private var typing: Bool
-    @Local private var usesPad = UserDefaults.standard.object(forKey: "tvTouchpad") as? Bool ?? true
+    @ViewState private var usesPad = TVApps.userDefaults.object(forKey: "tvTouchpad") as? Bool ?? true
 
     private var package: String { device.status["app"]?.string ?? "" }
     private var appName: String { TVApps.name(of: package) ?? "app" }
@@ -351,7 +354,7 @@ struct TVRemoteView: View {
             VStack(spacing: 10) {
                 Picker("Direcional", selection: Binding(get: { usesPad }, set: { pad in
                     usesPad = pad
-                    UserDefaults.standard.set(pad, forKey: "tvTouchpad")
+                    TVApps.userDefaults.set(pad, forKey: "tvTouchpad")
                 })) {
                     Text("Touchpad").tag(true)
                     Text("Setas").tag(false)
@@ -563,10 +566,10 @@ struct TVKey: View {
 struct Touchpad: View {
     let tint: Color
     let send: (ATVRemote.Key) -> Void
-    @Local private var anchor: CGSize = .zero
-    @Local private var finger: CGPoint?
+    @ViewState private var anchor: CGSize = .zero
+    @ViewState private var finger: CGPoint? = nil
     /// O arrasto já mandou alguma seta: soltar não vale OK, mesmo que o dedo volte ao ponto de partida.
-    @Local private var moved = false
+    @ViewState private var moved = false
 
     var body: some View {
         ZStack {
@@ -644,8 +647,8 @@ struct FilledStyle: ButtonStyle {
 /// Parear e remover TVs, dentro dos Ajustes.
 struct TVSettingsPanel: View {
     @EnvironmentObject private var store: HubStore
-    @Local private var code = ""
-    @Local private var name = ""
+    @ViewState private var code = ""
+    @ViewState private var name = ""
 
     var body: some View {
         Panel(title: "TV · Google TV / Android TV") {

@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 /// Refeição programada do alimentador Tuya. O ponto `meal_plan` é Raw (base64) com 5 bytes por
@@ -66,10 +67,10 @@ struct MealPlanPanel: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
 
-    @Local private var editing: Meal?
+    @ViewState private var editing: Meal? = nil
     /// Posição da refeição no plano (o aparelho manda sem id). nil = refeição nova. Comparar pelo
     /// conteúdo mexia em duas refeições iguais de uma vez.
-    @Local private var editingIndex: Int?
+    @ViewState private var editingIndex: Int? = nil
     private var isNew: Bool { editingIndex == nil }
 
     private static let maxMeals = 10
@@ -161,7 +162,7 @@ private extension Int {
 }
 
 struct MealEditor: View {
-    @Local var meal: Meal
+    @ViewState var meal: Meal
     let maxPortions: Int
     let isNew: Bool
     let save: (Meal) -> Void
@@ -170,7 +171,7 @@ struct MealEditor: View {
 
     init(meal: Meal, maxPortions: Int, isNew: Bool, save: @escaping (Meal) -> Void,
          delete: @escaping () -> Void, cancel: @escaping () -> Void) {
-        _meal = Local(initialValue: meal)
+        _meal = ViewState(wrappedValue: meal)
         self.maxPortions = maxPortions
         self.isNew = isNew
         self.save = save

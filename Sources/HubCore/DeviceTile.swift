@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 /// Botão compacto da grade: o círculo da direita liga e desliga; clicar em qualquer outro ponto
@@ -6,7 +7,9 @@ struct DeviceTile: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
     let open: () -> Void
-    @Local private var options = false
+    /// Tela do Hub: o clique escolhe o aparelho para o painel de detalhe, em vez de abrir o menu.
+    var select: (() -> Void)?
+    @ViewState private var options = false
 
     private var accent: Color { Theme.accent(device.kind) }
     private var on: Bool { device.online && device.isOn }
@@ -68,7 +71,7 @@ struct DeviceTile: View {
         .glow(fill.glow, on: lit, radius: 22, opacity: 0.25 + 0.3 * (device.brightness ?? 1))
         .opacity(device.online ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .onTapGesture { device.kind == .remote ? open() : (options = true) }
+        .onTapGesture { if let select { select() } else if device.kind == .remote { open() } else { options = true } }
         .popover(isPresented: $options, arrowEdge: .bottom) {
             OptionsMenu(device: device).environmentObject(store)
         }
@@ -106,7 +109,9 @@ struct DeviceTile: View {
 struct FeederCard: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
-    @Local private var options = false
+    /// Tela do Hub: o clique escolhe o alimentador para o painel de detalhe.
+    var select: (() -> Void)?
+    @ViewState private var options = false
 
     private var accent: Color { Theme.accent(.feeder) }
     private var feeding: Bool { device.status["feed_state"]?.string == "feeding" }
@@ -141,7 +146,7 @@ struct FeederCard: View {
         .glow(accent, on: feeding, radius: 22, opacity: 0.5)
         .opacity(device.online ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .onTapGesture { options = true }
+        .onTapGesture { if let select { select() } else { options = true } }
         .popover(isPresented: $options, arrowEdge: .bottom) {
             OptionsMenu(device: device).environmentObject(store)
         }

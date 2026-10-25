@@ -15,8 +15,15 @@ enum Log {
         return formatter
     }()
 
+    /// O selftest desliga: nada vai para o hub.log de verdade.
+    static var enabled = true
+    /// Última linha pedida, gravada ou não (o selftest confere o aviso de recurso ausente).
+    private(set) static var last: String?
+
     static func write(_ message: String) {
         lock.lock(); defer { lock.unlock() }
+        last = message
+        guard enabled else { return }
         if handle == nil { open() }
         guard let handle else { return }
         handle.seekToEndOfFile()

@@ -16,6 +16,16 @@ for arg in "$@"; do
   esac
 done
 
+# O NeyHub (plugin) e as atualizações conferem este certificado fixo (scripts/setup-signing.sh, o mesmo do Aero).
+# Sem ele não há fallback ad-hoc.
+IDENTITY="Aero Local Signing"
+# here-string, não pipe: com pipefail o grep -q saindo cedo pode dar SIGPIPE no security.
+IDENTS=$(security find-identity -p codesigning)
+if ! grep -q "$IDENTITY" <<<"$IDENTS"; then
+  echo "✗ sem a identidade \"$IDENTITY\": rode scripts/setup-signing.sh" >&2
+  exit 1
+fi
+
 ARCHS=()
 (( DIST )) && ARCHS=(--arch arm64 --arch x86_64)
 swift build -c "$CONFIG" "${ARCHS[@]}"
@@ -27,15 +37,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Hub"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
-cp -R Resources/AppLogos "$APP/Contents/Resources/"
-cp -R Resources/Fonts "$APP/Contents/Resources/"
+# Fontes e logos dos apps da TV: os mesmos que o release põe no .neyplugin.
+ditto Resources/Bundle "$APP/Contents/Resources"
 
-# Assina com o certificado local fixo do Aero, para o macOS reconhecer o app entre builds.
-IDENTITY="Aero Local Signing"
-if ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
-  echo "⚠ sem certificado local: rode scripts/setup-signing.sh, senão o macOS trata cada build como outro app"
-  IDENTITY="-"
-fi
 codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
 echo "✓ $APP"
 # Registra o hubmac:// (retorno do login do SmartThings) apontando para este build.

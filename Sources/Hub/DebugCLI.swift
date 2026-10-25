@@ -1,42 +1,17 @@
 import AppKit
-import SwiftUI
+import HubCore
 
+/// Modos de terminal do avulso (usam os mesmos tokens do app). O `--render` e o `--selftest` moram no HubCore.
 @MainActor
 enum DebugCLI {
     static func run(_ arguments: [String]) async {
-        if arguments.first == "--render" { return render(arguments) }
+        if arguments.first == "--render" { return HubApp.render(arguments, resources: Bundle.main.resourceURL) }
         if arguments.first == "--atv-launch", arguments.count > 1, let tv = Credentials.load().androidTVs?.first {
             let remote = ATVRemote(host: tv.host)
             remote.start()
             remote.launch(arguments[1])
             try? await Task.sleep(for: .seconds(8))
             return print("app na TV: \(remote.app ?? "não informado")")
-        }
-        if arguments.first == "--selftest" {
-            precondition(ADB.inputText("Ação 2'") == "Acao%s2'\\''", ADB.inputText("Ação 2'"))
-            precondition(ADB.inputText("Stranger Things") == "Stranger%sThings")
-            // O plano gravado no alimentador tem que sair igual ao que foi lido (senão apaga refeições).
-            let stored = "fwYAAgF/DAABAAATAAIBfxUAAQA="
-            precondition(Meal.encode(Meal.decode(stored)) == stored, "plano: \(Meal.encode(Meal.decode(stored)))")
-            precondition(Meal.encode([]) == "AA==" && Meal.decode("AA==").isEmpty)
-            // Campo 1 com tamanho 2^64-1: tem que ser recusado, não travar o app.
-            precondition(PBMessage(Data([0x0a] + [UInt8](repeating: 0xff, count: 9) + [0x01])) == nil)
-            let secret = "0123456789abcdef"
-            let sealed = try! TuyaClient.encrypt("{\"a\":1}", secret: secret)
-            precondition(String(data: try! TuyaClient.decrypt(sealed, secret: secret), encoding: .utf8) == "{\"a\":1}")
-            // Sábado 24/10/2026 22:40 (o selftest roda em release, por isso precondition e não assert); 06:00 todo dia e 19:00 só no domingo (bit 6).
-            var calendar = Calendar(identifier: .gregorian)
-            calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
-            let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 24, hour: 22, minute: 40))!
-            let plan = [Meal(days: 0x7f, hour: 6, portions: 2), Meal(days: 0x40, hour: 19), Meal(hour: 12, enabled: false)]
-            let schedule = Meal.schedule(plan, now: now, calendar: calendar)
-            let next = schedule.next.map { calendar.dateComponents([.day, .hour], from: $0.date) }
-            precondition(next?.day == 25 && next?.hour == 6, "próxima: \(String(describing: next))")
-            let previous = schedule.previous.map { calendar.dateComponents([.day, .hour], from: $0) }
-            precondition(previous?.day == 24 && previous?.hour == 6, "anterior: \(String(describing: previous))")
-            let sunday = Meal.schedule([plan[1]], now: now, calendar: calendar).next.map { calendar.dateComponents([.day, .hour], from: $0.date) }
-            precondition(sunday?.day == 25 && sunday?.hour == 19, "domingo: \(String(describing: sunday))")
-            return print("✓ selftest")
         }
         if arguments.first == "--atv-scan" {
             let found = await ATVDiscovery().scan()
@@ -90,33 +65,6 @@ enum DebugCLI {
         default:
             print("uso: Hub --dump | --tuya <id> <código> <valor> | --st <id> <capability> <comando> [args]")
         }
-    }
-
-    /// Desenha uma tela com aparelhos de exemplo num PNG, sem abrir nada na tela do usuário.
-    /// Hub --render <home|device:ID|settings> <arquivo.png> [light|dark]
-    /// Para ver com os aparelhos de verdade: open -n build/Hub.app --args --show e um print da janela.
-    private static func render(_ arguments: [String]) {
-        guard arguments.count >= 3 else { return print("uso: Hub --render <home|device:ID|settings> <arquivo.png> [light|dark]") }
-        let dark = !(arguments.count > 3 && arguments[3] == "light")
-        NSApplication.shared.setActivationPolicy(.prohibited)
-        NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        let store = HubStore(sample: true)
-        let screen = arguments[1]
-        let route: RootView.Route = screen == "settings" ? .settings
-            : screen.hasPrefix("device:") ? .device(String(screen.dropFirst(7))) : .home
-        let root = RootView(route: route)
-            .environmentObject(store)
-            .background(dark ? Color(white: 0.16) : Color(white: 0.95))
-            .environment(\.colorScheme, dark ? .dark : .light)
-            .environment(\.hubSnapshot, true)
-        let renderer = ImageRenderer(content: root)
-        renderer.scale = 2
-        guard let image = renderer.cgImage else { return print("não renderizou") }
-        let rep = NSBitmapImageRep(cgImage: image)
-        guard let png = rep.representation(using: .png, properties: [:]) else { return }
-        try? png.write(to: URL(fileURLWithPath: arguments[2]))
-        let frame = CGRect(x: 0, y: 0, width: image.width / 2, height: image.height / 2)
-        print("✓ \(arguments[2]) \(Int(frame.width))×\(Int(frame.height))")
     }
 
     private static func describe(_ spec: DPSpec) -> String {

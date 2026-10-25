@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 enum Theme {
@@ -25,12 +26,16 @@ enum Theme {
         let key = "\(size)-\(value)"
         if let cached = fonts[key] { return cached }
         // Eixo de peso da fonte variável pela etiqueta OpenType 'wght'.
-        let variation = NSFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
-        let descriptor = NSFontDescriptor(fontAttributes: [.family: "Outfit", variation: [0x7767_6874: value]])
-        let font = NSFont(descriptor: descriptor, size: size).flatMap { $0.familyName == "Outfit" ? Font($0) : nil }
-            ?? .system(size: size, weight: weight)
+        let font = outfit(size, weight: value).map { Font($0) } ?? .system(size: size, weight: weight)
         fonts[key] = font
         return font
+    }
+
+    /// A Outfit registrada no peso pedido; nil sem ela (o macOS devolveria outra família no lugar).
+    static func outfit(_ size: CGFloat, weight: CGFloat) -> NSFont? {
+        let variation = NSFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
+        let descriptor = NSFontDescriptor(fontAttributes: [.family: "Outfit", variation: [0x7767_6874: weight]])
+        return NSFont(descriptor: descriptor, size: size).flatMap { $0.familyName == "Outfit" ? $0 : nil }
     }
 
     /// Fontes já montadas: cada texto pedia uma NSFont nova a cada desenho.
@@ -39,10 +44,24 @@ enum Theme {
     /// Números grandes: a mesma Outfit, com algarismos de largura fixa onde for preciso (monospacedDigit).
     static func number(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font { font(size, weight) }
 
-    /// Registra as fontes de Resources/Fonts (Archivo e os ícones Lucide) só para este app.
-    static func registerFonts() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: "Fonts") ?? []
+    /// Pasta com `Fonts/` e `AppLogos/`: a do .app no avulso, `<Hub>.neyplugin/Resources` no NeyHub. nil = nada empacotado.
+    private(set) static var resources: URL?
+    /// Lucide registrada: sem ela os ícones caem no SF Symbol (o código da Lucide sairia como um quadrado vazio).
+    private(set) static var hasLucide = false
+
+    /// Registra as fontes de `<resources>/Fonts` (Outfit e os ícones Lucide) só para este processo. Sem pasta ou sem
+    /// fonte: fonte do sistema, SF Symbols e o nome no lugar do logo dos apps da TV, e fica no registro.
+    static func registerFonts(from resources: URL?) {
+        self.resources = resources
+        let urls = resources.flatMap {
+            try? FileManager.default.contentsOfDirectory(at: $0.appendingPathComponent("Fonts"), includingPropertiesForKeys: nil)
+        }?.filter { $0.pathExtension == "ttf" } ?? []
         CTFontManagerRegisterFontURLs(urls as CFArray, .process, true, nil)
+        hasLucide = urls.contains { $0.lastPathComponent == "lucide.ttf" }
+        fonts = [:]
+        if !hasLucide || !urls.contains(where: { $0.lastPathComponent == "Outfit.ttf" }) {
+            debugLog("recursos: fontes ausentes em \(resources?.path ?? "nenhuma pasta"); usando a fonte do sistema e ícones genéricos")
+        }
     }
 
     /// Cores do topo e da base da luz acesa: branca (do quente ao frio, pelo tom) ou a cor escolhida.
@@ -156,7 +175,7 @@ struct Icon: View {
                 .stroke(style: StrokeStyle(lineWidth: size / 12, lineCap: .round, lineJoin: .round))
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
-        } else if let code = Self.lucide[name], let scalar = UnicodeScalar(code) {
+        } else if Theme.hasLucide, let code = Self.lucide[name], let scalar = UnicodeScalar(code) {
             Text(String(Character(scalar)))
                 .font(.custom("lucide", size: size))
                 .frame(width: size, height: size)
@@ -206,7 +225,7 @@ struct IconButton: View {
     let symbol: String
     var help = ""
     let action: () -> Void
-    @Local private var hover = false
+    @ViewState private var hover = false
 
     var body: some View {
         Button(action: action) {
@@ -224,7 +243,7 @@ struct IconButton: View {
 
 extension Double {
     /// 12.5 → "12,5"; 23.0 → "23".
-    var short: String {
+    package var short: String {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "pt_BR")
         formatter.maximumFractionDigits = 1
@@ -268,10 +287,6 @@ extension View {
             .clipShape(shape)
     }
 }
-
-/// O SDK do macOS 27 transformou `@State` em macro, e o plugin dela só vem com o Xcode. Pelo
-/// typealias o compilador usa o property wrapper de sempre, que funciona só com as Command Line Tools.
-typealias Local<Value> = SwiftUI.State<Value>
 
 /// Rolagem que vira pilha simples no `Hub --render` (o ImageRenderer não desenha ScrollView).
 struct Scroller<Content: View>: View {

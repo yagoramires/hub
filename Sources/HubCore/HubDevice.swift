@@ -1,33 +1,33 @@
 import Foundation
 
 /// Um aparelho de qualquer nuvem, no formato que a interface usa.
-struct HubDevice: Identifiable, Equatable {
+package struct HubDevice: Identifiable, Equatable {
     enum Source: Equatable {
         case tuya(account: String)
         case smartThings
         case androidTV(host: String)
     }
 
-    enum Kind: Int, Comparable {
+    package enum Kind: Int, Comparable {
         case airConditioner, tv, light, plug, feeder, remote, other
-        static func < (lhs: Kind, rhs: Kind) -> Bool { lhs.rawValue < rhs.rawValue }
+        package static func < (lhs: Kind, rhs: Kind) -> Bool { lhs.rawValue < rhs.rawValue }
     }
 
-    let id: String
-    var name: String
+    package let id: String
+    package var name: String
     var source: Source
-    var category: String
-    var kind: Kind
-    var online: Bool
-    var room: String?
+    package var category: String
+    package var kind: Kind
+    package var online: Bool
+    package var room: String?
     /// Tuya: código do ponto → valor. SmartThings: "capability.atributo" → valor.
-    var status: [String: DPValue] = [:]
+    package var status: [String: DPValue] = [:]
     /// Tuya: o que dá para comandar.
-    var functions: [String: DPSpec] = [:]
+    package var functions: [String: DPSpec] = [:]
     /// Tuya: faixas e escalas do que o aparelho informa.
     var statusSpecs: [String: DPSpec] = [:]
     /// SmartThings: capabilities do componente principal.
-    var capabilities: Set<String> = []
+    package var capabilities: Set<String> = []
 
     static func tuyaKind(category: String, name: String = "") -> Kind {
         // Relé ou tomada ligado numa luz: na Tuya é "cz", mas para quem usa é uma luz.

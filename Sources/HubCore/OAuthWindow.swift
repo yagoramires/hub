@@ -11,26 +11,30 @@ final class OAuthWindow {
 
     private var state = ""
     private var completion: ((String) -> Void)?
+    /// Abre o login no navegador; o selftest troca por um gravador.
+    var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
     func start(url: URL, completion: @escaping (String) -> Void) {
         self.completion = completion
         state = UUID().uuidString
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "state", value: state)]
-        NSWorkspace.shared.open(components.url!)
+        open(components.url!)
     }
 
-    /// Chamado pelo AppDelegate quando o navegador abre hubmac://callback?code=…&state=…
-    func handle(_ url: URL) {
-        guard url.absoluteString.hasPrefix(Self.redirectURI) else { return }
+    /// hubmac://callback?code=…&state=…, do avulso ou do NeyHub. false = não é o login que o Hub espera (outro esquema,
+    /// state errado ou nenhum login em andamento): o NeyHub avisa em vez de perder a URL em silêncio.
+    func handle(_ url: URL) -> Bool {
+        guard url.absoluteString.hasPrefix(Self.redirectURI) else { return false }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         guard let code = items.first(where: { $0.name == "code" })?.value,
               items.first(where: { $0.name == "state" })?.value == state, let done = completion
         else {
             debugLog("oauth: retorno sem code, com state errado ou sem login em andamento")
-            return
+            return false
         }
         completion = nil
         done(code)
+        return true
     }
 }

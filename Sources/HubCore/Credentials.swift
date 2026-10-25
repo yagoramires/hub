@@ -4,18 +4,24 @@ import Security
 /// Tokens de cada nuvem, num JSON em ~/Library/Application Support/Hub com permissão só do
 /// usuário (0600). Já ficaram no Keychain, mas com certificado local (sem Team ID da Apple) o
 /// macOS amarra o acesso ao hash de cada build e pedia a senha depois de toda compilação.
-struct Credentials: Codable, Equatable {
+package struct Credentials: Codable, Equatable {
     var tuya: [TuyaAccount] = []
     var smartThings: SmartThingsAuth?
     /// App OAuth criado pelo SmartThings CLI, guardado antes do primeiro login.
     var smartThingsApp: SmartThingsApp?
     /// TVs com Google TV / Android TV já pareadas (o pareamento fica no certificado do Hub).
-    var androidTVs: [AndroidTVConfig]?
+    package var androidTVs: [AndroidTVConfig]?
 
-    static let url = FileManager.default.homeDirectoryForCurrentUser
+    static let real = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Hub/credentials.json")
+    /// Um app por processo: o HubApp troca (e o selftest, antes de tudo, aponta para uma pasta temporária).
+    static var url = real
+    /// Só o avulso traz o que ficou no Chaveiro (versões antigas). Hospedado no NeyHub nunca lê o Chaveiro.
+    static var migratesKeychain = false
+    /// O selftest troca por um falso: nunca toca no Chaveiro de verdade.
+    static var readKeychain: () -> Credentials? = loadFromKeychain
 
-    static func load() -> Credentials {
+    package static func load() -> Credentials {
         if let data = try? Data(contentsOf: url) {
             if let credentials = try? JSONDecoder().decode(Credentials.self, from: data) { return credentials }
             // Guarda o arquivo estragado: o próximo save() gravaria por cima e levaria tudo junto.
@@ -28,7 +34,7 @@ struct Credentials: Codable, Equatable {
             return Credentials()
         }
         // Primeira vez com arquivo: traz o que estava no Keychain (pede a senha uma última vez).
-        guard let migrated = loadFromKeychain() else { return Credentials() }
+        guard migratesKeychain, let migrated = readKeychain() else { return Credentials() }
         migrated.save()
         debugLog("credenciais migradas do Keychain para \(url.path)")
         return migrated
@@ -90,7 +96,7 @@ struct SmartThingsApp: Codable, Equatable {
     var clientSecret: String
 }
 
-struct AndroidTVConfig: Codable, Equatable {
+package struct AndroidTVConfig: Codable, Equatable {
     var name: String
-    var host: String
+    package var host: String
 }

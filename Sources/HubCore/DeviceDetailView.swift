@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 /// Tudo o que um aparelho Tuya aceita. Luz e alimentador têm controles próprios; o resto vira
@@ -302,8 +303,8 @@ struct VerticalBar: View {
     var bottom: String?
     let commit: (Double) -> Void
 
-    @Local private var dragging: Double?
-    @Local private var held: Double?
+    @ViewState private var dragging: Double? = nil
+    @ViewState private var held: Double? = nil
 
     var body: some View {
         let fraction = dragging ?? held ?? value
@@ -369,7 +370,7 @@ struct VerticalBar: View {
 struct FeederControls: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
-    @Local private var portions = 1
+    @ViewState private var portions = 1
 
     private var spec: DPSpec? { device.functions["manual_feed"] }
     private var feeding: Bool { device.status["feed_state"]?.string == "feeding" }
@@ -482,8 +483,8 @@ struct SpecSlider: View {
     var tint: Color = .accentColor
     let commit: (Double) -> Void
 
-    @Local private var dragging: Double?
-    @Local private var held: Double?
+    @ViewState private var dragging: Double? = nil
+    @ViewState private var held: Double? = nil
 
     private var span: Double { max(spec.max - spec.min, 1) }
 

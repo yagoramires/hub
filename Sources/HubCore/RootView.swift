@@ -1,12 +1,13 @@
+import NeyKit
 import SwiftUI
 
 /// Conteúdo do popover: início, detalhes de um aparelho ou ajustes.
 struct RootView: View {
     @EnvironmentObject private var store: HubStore
-    @Local private var route: Route
+    @ViewState private var route: Route
 
     init(route: Route = .home) {
-        _route = Local(initialValue: route)
+        _route = ViewState(wrappedValue: route)
     }
 
     enum Route: Equatable {
@@ -57,14 +58,6 @@ struct HomeView: View {
     let open: (String) -> Void
     let settings: () -> Void
 
-    private var climate: [HubDevice] { store.devices.filter { $0.kind == .airConditioner && $0.source == .smartThings } }
-    private var tvs: [HubDevice] { store.devices.filter { $0.kind == .tv } }
-    private var tiles: [HubDevice] {
-        store.devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && ![.remote, .tv, .feeder].contains($0.kind) }
-    }
-    private var feeders: [HubDevice] { store.devices.filter { $0.kind == .feeder } }
-    private var remotes: [HubDevice] { store.devices.filter { $0.kind == .remote } }
-
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -96,13 +89,13 @@ struct HomeView: View {
             } else {
                 Scroller {
                     VStack(spacing: 10) {
-                        ForEach(climate) { ACCard(device: $0) }
-                        ForEach(tvs) { device in TVCard(device: device) { open(device.id) } }
-                        TileGrid(devices: tiles, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
-                        TileGrid(devices: feeders, columns: 1) { FeederCard(device: $0) }
-                        if !remotes.isEmpty {
+                        ForEach(store.climate) { ACCard(device: $0) }
+                        ForEach(store.televisions) { device in TVCard(device: device) { open(device.id) } }
+                        TileGrid(devices: store.tiles, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
+                        TileGrid(devices: store.feeders, columns: 1) { FeederCard(device: $0) }
+                        if !store.remotes.isEmpty {
                             SectionTitle(text: "Controles")
-                            TileGrid(devices: remotes, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
+                            TileGrid(devices: store.remotes, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -115,8 +108,8 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(greeting).font(Theme.font(20, .semibold))
-                Text(summary).font(Theme.font(12)).foregroundStyle(.secondary).lineLimit(2)
+                Text(store.greeting).font(Theme.font(20, .semibold))
+                Text(store.summary).font(Theme.font(12)).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()
             IconButton(symbol: "arrow.clockwise", help: "Atualizar") { Task { await store.refresh() } }
@@ -125,8 +118,19 @@ struct HomeView: View {
             IconButton(symbol: "gearshape", help: "Ajustes", action: settings)
         }
     }
+}
 
-    private var greeting: String {
+/// O que o popover e a tela do Hub mostram, separado por tipo de aparelho.
+extension HubStore {
+    var climate: [HubDevice] { devices.filter { $0.kind == .airConditioner && $0.source == .smartThings } }
+    var televisions: [HubDevice] { devices.filter { $0.kind == .tv } }
+    var tiles: [HubDevice] {
+        devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && ![.remote, .tv, .feeder].contains($0.kind) }
+    }
+    var feeders: [HubDevice] { devices.filter { $0.kind == .feeder } }
+    var remotes: [HubDevice] { devices.filter { $0.kind == .remote } }
+
+    var greeting: String {
         switch Calendar.current.component(.hour, from: Date()) {
         case 5..<12: "Bom dia"
         case 12..<18: "Boa tarde"
@@ -135,9 +139,9 @@ struct HomeView: View {
     }
 
     /// A casa numa frase: "Ar em 23°, Luz da sala acesa, TV no YouTube".
-    private var summary: String {
-        guard !store.devices.isEmpty else { return store.hasAccounts ? "Casa" : "Nenhuma conta conectada" }
-        let on = store.devices.filter { $0.online && $0.isOn }
+    var summary: String {
+        guard !devices.isEmpty else { return hasAccounts ? "Casa" : "Nenhuma conta conectada" }
+        let on = devices.filter { $0.online && $0.isOn }
         var parts: [String] = []
         for ac in on where ac.kind == .airConditioner {
             parts.append(ac.acSetpoint.map { "Ar em \($0.short)°" } ?? "Ar ligado")
@@ -149,7 +153,7 @@ struct HomeView: View {
         }
         // Só tomadas e afins ligados: a contagem basta.
         if parts.isEmpty { parts.append(on.isEmpty ? "Tudo desligado" : on.count == 1 ? "1 aparelho ligado" : "\(on.count) aparelhos ligados") }
-        let offline = store.devices.filter { !$0.online }.count
+        let offline = devices.filter { !$0.online }.count
         if offline > 0 { parts.append(offline == 1 ? "1 sem conexão" : "\(offline) sem conexão") }
         return parts.joined(separator: ", ")
     }

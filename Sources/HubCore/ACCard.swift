@@ -1,3 +1,4 @@
+import NeyKit
 import SwiftUI
 
 /// Cartão do ar-condicionado: o ar ligado solta luz fria, a régua vai do frio ao quente e
@@ -7,8 +8,8 @@ struct ACCard: View {
     let device: HubDevice
     /// Nos detalhes o cabeçalho da tela já mostra o nome.
     var showsName = true
-    @Local private var target: Double?
-    @Local private var sendTask: Task<Void, Never>?
+    @ViewState private var target: Double? = nil
+    @ViewState private var sendTask: Task<Void, Never>? = nil
 
     private var on: Bool { device.isOn }
     private var setpoint: Double { target ?? device.acSetpoint ?? 24 }

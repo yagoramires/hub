@@ -1,0 +1,8 @@
+{
+  "id": "local.hub",
+  "name": "Hub",
+  "hasScreen": true,
+  "permissions": [],
+  "binary": "libHubPlugin.dylib",
+  "minMacOS": "15.0"
+}
