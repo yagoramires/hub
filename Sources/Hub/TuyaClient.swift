@@ -6,6 +6,7 @@ import Foundation
 /// requisição é cifrada com AES-GCM e assinada com HMAC, igual ao tuya-device-sharing-sdk.
 @MainActor
 final class TuyaClient {
+    // clientId público da integração Tuya do Home Assistant (está no código aberto do HA), não é segredo nosso.
     static let clientId = "HA_3y9q4ak7g4ephrvke"
     static let schema = "haauthorize"
     private static let loginHost = "https://apigw.iotbing.com"
