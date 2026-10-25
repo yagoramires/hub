@@ -5,7 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ERR=$(mktemp)
-trap 'rm -f "$ERR"' EXIT
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+# No fim o .app de teste sai do LaunchServices: cópia (espelho, pasta temporária) não fica reivindicando esquemas.
+trap 'rm -f "$ERR"; $LSREGISTER -u "$PWD/build/Hub.app" 2>/dev/null || true' EXIT
 scripts/build.sh debug >"$ERR" 2>&1 || { cat "$ERR" >&2; exit 1; }
 rc=0
 build/Hub.app/Contents/MacOS/Hub --selftest 2>"$ERR" || rc=$?
