@@ -199,7 +199,15 @@ struct TVCard: View {
                     }
                 }
                 .padding(.horizontal, 2)
-                VolumeSlider(device: device, tint: light)
+                HStack(spacing: 6) {
+                    VolumeSlider(device: device, tint: light)
+                    ForEach([("arrow.uturn.backward", "Voltar", ATVRemote.Key.back),
+                             ("house.fill", "Início", .home),
+                             ("playpause.fill", "Tocar ou pausar", .playPause)], id: \.1) { symbol, label, key in
+                        TVKey(device: device, symbol: symbol, label: label, key: key, height: 34, corner: 12)
+                            .frame(width: 34)
+                    }
+                }
             }
         }
         .padding(12)
@@ -524,10 +532,25 @@ struct TVRemoteView: View {
     }
 
     private func key(_ symbol: String, _ label: String, _ key: ATVRemote.Key) -> some View {
+        TVKey(device: device, symbol: symbol, label: label, key: key)
+    }
+}
+
+/// Tecla do controle: usada no controle completo e, menor, no cartão da tela principal.
+struct TVKey: View {
+    @EnvironmentObject private var store: HubStore
+    let device: HubDevice
+    let symbol: String
+    let label: String
+    let key: ATVRemote.Key
+    var height: CGFloat = 46
+    var corner: CGFloat = 15
+
+    var body: some View {
         Button { store.tvKey(device, key) } label: {
             Icon(symbol, size: 14)
-                .frame(maxWidth: .infinity, minHeight: 46)
-                .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Theme.well))
+                .frame(maxWidth: .infinity, minHeight: height)
+                .background(RoundedRectangle(cornerRadius: corner, style: .continuous).fill(Theme.well))
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
