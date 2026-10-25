@@ -23,8 +23,8 @@ struct DeviceDetailView: View {
             header.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 10)
                 .background(alignment: .top) {
                     if device.kind == .light, device.isOn {
-                        Ellipse().fill(light).frame(width: 420, height: 360).blur(radius: 90)
-                            .opacity(0.25 + 0.3 * (device.brightness ?? 1)).offset(y: 40).allowsHitTesting(false)
+                        SoftGlow(color: light, width: 420, height: 360, spread: 90)
+                            .opacity(0.25 + 0.3 * (device.brightness ?? 1)).offset(y: 40)
                     }
                 }
             Scroller {
@@ -202,14 +202,14 @@ struct LightControls: View {
                     VerticalBar(label: "Brilho", value: device.isOn ? (device.brightness ?? 1) : 0, style: .light(fill.low, fill.high)) {
                         setBrightness($0)
                     }
-                    .frame(width: 150)
+                    .frame(minWidth: 110, maxWidth: 150)
                 }
                 if colourMode, let hsv = device.colour {
                     VerticalBar(label: "Saturação", value: hsv.s,
                                 style: .knob([Color(hue: hsv.h / 360, saturation: 1, brightness: 1), .white])) {
                         setColour(hue: hsv.h, saturation: $0)
                     }
-                    .frame(width: 72)
+                    .frame(minWidth: 60, maxWidth: 72)
                 } else if let temperature {
                     let raw = device.status[temperature.code]?.number ?? temperature.min
                     VerticalBar(label: "Tom", value: (raw - temperature.min) / max(temperature.max - temperature.min, 1),
@@ -217,28 +217,22 @@ struct LightControls: View {
                                 top: "fria", bottom: "quente") {
                         store.setTuya(device, temperature.code, Int((temperature.min + $0 * (temperature.max - temperature.min)).rounded()))
                     }
-                    .frame(width: 72)
+                    .frame(minWidth: 60, maxWidth: 72)
                 }
             }
             .frame(height: 340)
             .frame(maxWidth: .infinity)
 
             if hasColour {
-                HStack {
-                    swatch("Branca", fill: AnyShapeStyle(LinearGradient(colors: [Color(red: 1, green: 0.95, blue: 0.88), Color(red: 1, green: 0.71, blue: 0.36)],
-                                                                       startPoint: .topLeading, endPoint: .bottomTrailing)),
-                           ring: Color(red: 1, green: 0.77, blue: 0.4), selected: !colourMode) {
-                        var commands: [(code: String, value: Any)] = [("work_mode", "white")]
-                        if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
-                        store.setTuya(device, commands)
+                // Numa linha no popover; no detalhe estreito da tela do Hub, em duas.
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        white
+                        hues(Self.hues)
                     }
-                    ForEach(Self.hues, id: \.hue) { item in
-                        let color = Color(hue: item.hue / 360, saturation: 0.85, brightness: 1)
-                        let selected = colourMode && device.colour.map { abs($0.h - item.hue) < 12 } == true
-                        swatch(item.name, fill: AnyShapeStyle(color), ring: color, selected: selected) {
-                            setColour(hue: item.hue, saturation: 1)
-                        }
-                        if item.hue != Self.hues.last?.hue { Spacer(minLength: 0) }
+                    VStack(spacing: 8) {
+                        HStack { white; hues(Array(Self.hues.prefix(4))) }
+                        HStack { hues(Array(Self.hues.dropFirst(4))) }
                     }
                 }
                 .padding(.horizontal, 4)
@@ -247,6 +241,27 @@ struct LightControls: View {
                 .font(Theme.font(11)).foregroundStyle(.secondary)
         }
         .padding(.vertical, 6)
+    }
+
+    private var white: some View {
+        swatch("Branca", fill: AnyShapeStyle(LinearGradient(colors: [Color(red: 1, green: 0.95, blue: 0.88), Color(red: 1, green: 0.71, blue: 0.36)],
+                                                           startPoint: .topLeading, endPoint: .bottomTrailing)),
+               ring: Color(red: 1, green: 0.77, blue: 0.4), selected: !colourMode) {
+            var commands: [(code: String, value: Any)] = [("work_mode", "white")]
+            if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
+            store.setTuya(device, commands)
+        }
+    }
+
+    @ViewBuilder private func hues(_ items: [(name: String, hue: Double)]) -> some View {
+        ForEach(items, id: \.hue) { item in
+            Spacer(minLength: 0)
+            let color = Color(hue: item.hue / 360, saturation: 0.85, brightness: 1)
+            let selected = colourMode && device.colour.map { abs($0.h - item.hue) < 12 } == true
+            swatch(item.name, fill: AnyShapeStyle(color), ring: color, selected: selected) {
+                setColour(hue: item.hue, saturation: 1)
+            }
+        }
     }
 
     private func swatch(_ name: String, fill: AnyShapeStyle, ring: Color, selected: Bool, action: @escaping () -> Void) -> some View {

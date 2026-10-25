@@ -5,13 +5,14 @@ import SwiftUI
 /// `Hub --render <tela> <arquivo.png> [light|dark]`: desenha uma tela com aparelhos de exemplo num PNG, sem abrir nada na
 /// tela do usuário, sem rede e sem as credenciais de verdade.
 /// Telas: home, device:ID, settings, settings:hosted (os ajustes dentro do NeyHub), screen (a tela do Hub, Casa),
-/// screen:tv, screen:racao, screen:narrow (a janela padrão do NeyHub) e screen:empty (nada escolhido no detalhe).
+/// screen:tv, screen:racao, screen:narrow (a janela padrão do NeyHub), screen:empty (nada escolhido no detalhe) e
+/// screen@<largura> (a Casa numa largura qualquer).
 /// Para ver com os aparelhos de verdade: open -n build/Hub.app --args --show e um print da janela.
 @MainActor
 enum Render {
     static func run(_ arguments: [String], resources: URL?) {
         guard arguments.count >= 3 else {
-            return print("uso: Hub --render <home|device:ID|settings|settings:hosted|screen|screen:tv|screen:racao|screen:narrow|screen:empty> <arquivo.png> [light|dark]")
+            return print("uso: Hub --render <home|device:ID|settings|settings:hosted|screen|screen:tv|screen:racao|screen:narrow|screen:empty|screen@<largura>> <arquivo.png> [light|dark]")
         }
         // Os ajustes leem as credenciais ao abrir: aponta para um arquivo que não existe, nunca o de verdade.
         Credentials.url = FileManager.default.temporaryDirectory.appendingPathComponent("hub-render-\(UUID().uuidString)/none.json")
@@ -28,6 +29,10 @@ enum Render {
         let view: AnyView
         var size: CGSize?
         switch screen {
+        case _ where screen.hasPrefix("screen@"):
+            // screen@<largura>: a área que o NeyHub dá ao plugin (janela − 170 da barra lateral − 32 de margem).
+            view = AnyView(ScreenView(selected: "light"))
+            size = CGSize(width: Double(screen.dropFirst(7)) ?? 698, height: 700)
         case "screen", "screen:empty", "screen:narrow":
             view = AnyView(ScreenView(selected: screen == "screen" ? "light" : nil))
             size = screen == "screen:narrow" ? CGSize(width: 698, height: 760) : CGSize(width: 1060, height: 700)

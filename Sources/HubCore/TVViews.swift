@@ -387,8 +387,7 @@ struct TVRemoteView: View {
                 .font(Theme.font(10.5)).foregroundStyle(.secondary)
         }
         .background(alignment: .top) {
-            Ellipse().fill(light).frame(width: 340, height: 220).blur(radius: 70).opacity(0.45).offset(y: -90)
-                .allowsHitTesting(false)
+            SoftGlow(color: light, width: 340, height: 220, spread: 70).opacity(0.45).offset(y: -90)
         }
         .animation(.easeOut(duration: 0.35), value: package)
         .focusable()

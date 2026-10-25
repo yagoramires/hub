@@ -153,6 +153,9 @@ package final class HubStore: ObservableObject {
     }
 
     var polling: Bool { pollTimer != nil }
+    var tvDiscoveryIdle: Bool { tvDiscovery.idle }
+    /// O selftest confere que o `stop()` parou cada controle.
+    var tvRemotes: [ATVRemote] { Array(tvs.values) }
     var timersRunning: Bool { pollTimer != nil || tokenTimer != nil }
     var tvConnections: Int { tvs.count }
 

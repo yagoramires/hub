@@ -7,8 +7,17 @@ import NeyKitApp
 final class HubAppDelegate: NSObject, NSApplicationDelegate {
     private var hub: HubApp?
     private var updater: Updater?
+    /// hubmac:// que chegou antes do HubApp existir (o macOS abriu o avulso por causa do retorno do login).
+    private var pending: [URL] = []
+
+    /// Antes de terminar de abrir: o retorno do login que fez o macOS abrir o avulso chega já aqui, antes do HubCheck.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(getURL(_:reply:)),
+                                                     forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // O hubmac:// que veio na abertura já foi repassado ao NeyHub (getURL) antes deste aviso.
         if HubCheck.isHosted(id: "local.hub") && HubCheck.leaveForHub(id: "local.hub", name: "Hub") { return }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
         let hub = HubApp(defaults: .standard, hosted: false, version: version, resources: Bundle.main.resourceURL)
@@ -16,6 +25,8 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
         setupMenu()
         hub.applyPresence(hub.presence)
         self.hub = hub
+        open(pending)
+        pending = []
 
         let updater = Updater(name: "Hub", repo: "yagoramires/hub", id: "local.hub")
         hub.updateReady = updater.staged != nil
@@ -29,10 +40,25 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// hubmac://callback, o retorno do login do SmartThings.
-    func application(_ application: NSApplication, open urls: [URL]) {
-        urls.forEach { _ = hub?.handleURL($0) }
-        hub?.reveal()
+    /// hubmac://callback, o retorno do login do SmartThings. Com o NeyHub rodando o Hub, o login em andamento é o de lá:
+    /// repassa ao NeyHub em vez de perder a URL quando o avulso sair.
+    @objc private func getURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let text = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URL(string: text) else { return }
+        open([url])
+    }
+
+    private func open(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let neyHub = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "local.neyhub")
+        switch LoginRoute.decide(hosted: HubCheck.isHosted(id: "local.hub"), neyHub: neyHub, started: hub != nil) {
+        case .neyHub(let app):
+            NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        case .here:
+            urls.forEach { _ = hub?.handleURL($0) }
+            hub?.reveal()
+        case .wait:
+            pending += urls
+        }
     }
 
     /// Para os timers e as conexões com as TVs antes de sair; a versão preparada entra agora.

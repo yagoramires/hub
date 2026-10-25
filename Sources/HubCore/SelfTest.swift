@@ -21,6 +21,20 @@ enum SelfTest {
         hostedApp(dir)
         standaloneMigration(dir)
         appStop(dir)
+        loginRoute()
+    }
+
+    /// hubmac:// no avulso: com o NeyHub rodando o Hub vai para o NeyHub (o login em andamento é de lá); senão fica aqui
+    /// ou espera o HubApp nascer.
+    private static func loginRoute() {
+        let neyHub = URL(fileURLWithPath: "/Applications/NeyHub.app")
+        precondition(LoginRoute.decide(hosted: true, neyHub: neyHub, started: false) == .neyHub(neyHub))
+        precondition(LoginRoute.decide(hosted: true, neyHub: neyHub, started: true) == .neyHub(neyHub))
+        precondition(LoginRoute.decide(hosted: false, neyHub: neyHub, started: true) == .here)
+        precondition(LoginRoute.decide(hosted: false, neyHub: neyHub, started: false) == .wait)
+        // NeyHub sumiu do disco: não dá para repassar, o avulso trata.
+        precondition(LoginRoute.decide(hosted: true, neyHub: nil, started: true) == .here)
+        precondition(LoginRoute.decide(hosted: true, neyHub: nil, started: false) == .wait)
     }
 
     /// Recurso do Hub ausente no plugin (Review Focus 5): fonte do sistema, SF Symbol no lugar da Lucide, o nome no lugar
@@ -106,6 +120,19 @@ enum SelfTest {
         precondition(codes == ["abc"])
         // Usado uma vez: repetir a mesma URL não loga de novo.
         precondition(!app.handleURL(URL(string: "hubmac://callback?code=abc&state=\(state!)")!) && codes == ["abc"])
+        // Login esquecido no navegador: depois de ~10 min o retorno é recusado, mesmo com o state certo.
+        var clock = Date()
+        OAuthWindow.shared.now = { clock }
+        defer { OAuthWindow.shared.now = Date.init }
+        opened = []
+        OAuthWindow.shared.start(url: URL(string: "https://api.smartthings.com/oauth/authorize?client_id=a")!) { codes.append($0) }
+        let late = opened.first.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "state" }?.value }!
+        clock += OAuthWindow.lifetime - 1
+        precondition(OAuthWindow.lifetime <= 10 * 60 && app.handleURL(URL(string: "hubmac://callback?code=ok&state=\(late)")!), "dentro do prazo")
+        OAuthWindow.shared.start(url: URL(string: "https://api.smartthings.com/oauth/authorize?client_id=a")!) { codes.append($0) }
+        let expired = opened.last.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "state" }?.value }!
+        clock += OAuthWindow.lifetime + 1
+        precondition(!app.handleURL(URL(string: "hubmac://callback?code=velho&state=\(expired)")!) && codes == ["abc", "ok"], "login vencido aceito")
     }
 
     /// Hospedado: sem Sair, sem login, sem modos e sem atualização; nunca lê o Chaveiro; padrões pelo domínio injetado.
@@ -149,20 +176,41 @@ enum SelfTest {
         Credentials.migratesKeychain = false
     }
 
-    /// `stop()` (desinstalar no NeyHub): timers de 10 s e 12 h parados, TVs desligadas, sem ícone, sem monitor de cliques.
+    /// `stop()` (desinstalar no NeyHub): timers de 10 s e 12 h parados, controles das TVs parados, busca de TVs parada, sem
+    /// popover, sem monitor de cliques e sem ícone.
     private static func appStop(_ dir: URL) {
-        let app = HubApp(defaults: suite("stop"), hosted: true, version: "9.9.9", resources: nil,
-                         credentials: dir.appendingPathComponent("stop/credentials.json"))
+        // TV no próprio Mac (127.0.0.1, nada sai pela rede): o controle é criado e iniciado, mas a Task da conexão só rodaria
+        // depois do selftest, e o guard do `stopped` não deixa conectar nem gerar certificado.
+        let url = dir.appendingPathComponent("stop/credentials.json")
+        Credentials.url = url
+        Credentials(androidTVs: [AndroidTVConfig(name: "TV", host: "127.0.0.1")]).save()
+        let app = HubApp(defaults: suite("stop"), hosted: true, version: "9.9.9", resources: nil, credentials: url)
+        app.statusAutosaveName = autosave
+        defer { forgetStatusItem() }
+        let remotes = app.store.tvRemotes
+        precondition(remotes.count == 1 && !remotes[0].stopped && app.store.tvDiscoveryIdle)
         app.start()
         app.setMenuBarVisible(true)
         precondition(app.hasStatusItem)
-        app.store.startPolling()
-        app.store.startPolling() // popover e tela ao mesmo tempo
-        precondition(app.store.polling && app.store.timersRunning)
+        // O caminho de verdade do clique no ícone: liga o monitor de cliques fora e o timer de 10 s. (Sem o run loop do app o
+        // NSPopover não chega a aparecer, então `isShown` não é conferido.)
+        app.showPopover()
+        precondition(app.watchingClicks && app.store.polling, "popover aberto sem monitor ou sem timer")
+        app.store.startPolling() // a tela aberta junto
         app.store.stopPolling()
         precondition(app.store.polling, "um só fechou: o timer de 10 s continua para o outro")
         app.stop()
-        precondition(!app.store.timersRunning && app.store.tvConnections == 0 && !app.hasStatusItem && !app.watchingClicks)
+        precondition(!app.store.timersRunning && app.store.tvConnections == 0 && remotes.allSatisfy(\.stopped))
+        precondition(app.store.tvDiscoveryIdle && !app.hasStatusItem && !app.watchingClicks)
+    }
+
+    private static let autosave = "local.hub.selftest"
+
+    /// O macOS grava a posição e a visibilidade do ícone pelo autosaveName: apaga as chaves do nome de teste.
+    private static func forgetStatusItem() {
+        for key in ["NSStatusItem Preferred Position \(autosave)", "NSStatusItem Visible \(autosave)", "NSStatusItem VisibleCC \(autosave)"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     /// Domínio de padrões próprio do teste, limpo a cada rodada.

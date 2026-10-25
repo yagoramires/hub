@@ -90,7 +90,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
             self.statusItem = nil
         } else if visible, statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            item.autosaveName = "local.hub"
+            item.autosaveName = statusAutosaveName
             item.button?.target = self
             item.button?.action = #selector(togglePopover)
             statusItem = item
@@ -133,7 +133,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     public func showScreen() {
         if screenWindow == nil {
             screenWindow = window(makeScreen(), title: "Hub")
-            screenWindow?.setContentSize(NSSize(width: 1060, height: 700))
+            screenWindow?.setContentSize(NSSize(width: 960, height: 700))
             screenWindow?.center()
         }
         bringToFront(screenWindow)
@@ -170,7 +170,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
         popover.isShown ? popover.performClose(nil) : showPopover()
     }
 
-    private func showPopover() {
+    func showPopover() {
         guard let button = statusItem?.button, !popover.isShown else { return }
         if popover.contentViewController == nil {
             let host = NSHostingController(rootView: RootView().environmentObject(store).environmentObject(shell))
@@ -204,6 +204,8 @@ public final class HubApp: NSObject, NSPopoverDelegate {
         outsideClicks = nil
     }
 
+    /// Onde o macOS lembra a posição do ícone. O selftest usa outro nome: nunca mexe na posição do Hub de verdade.
+    var statusAutosaveName = "local.hub"
     var hasStatusItem: Bool { statusItem != nil }
     var watchingClicks: Bool { outsideClicks != nil }
 
@@ -213,6 +215,17 @@ public final class HubApp: NSObject, NSPopoverDelegate {
 
     /// `Hub --render <tela> <arquivo.png> [light|dark]`: desenha uma tela com aparelhos de exemplo.
     public static func render(_ arguments: [String], resources: URL?) { Render.run(arguments, resources: resources) }
+}
+
+/// Para onde vai um `hubmac://` que chegou ao avulso. Se o NeyHub roda o Hub, é dele (o avulso vai sair e o login
+/// em andamento está lá); senão o próprio avulso trata, ou guarda até o HubApp existir.
+public enum LoginRoute: Equatable {
+    case neyHub(URL), here, wait
+
+    public static func decide(hosted: Bool, neyHub: URL?, started: Bool) -> LoginRoute {
+        if hosted, let neyHub { return .neyHub(neyHub) }
+        return started ? .here : .wait
+    }
 }
 
 /// O que muda no popover, na tela e nos ajustes entre o avulso e o NeyHub.

@@ -42,8 +42,6 @@ ditto Resources/Bundle "$APP/Contents/Resources"
 
 codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
 echo "✓ $APP"
-# Registra o hubmac:// (retorno do login do SmartThings) apontando para este build.
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 
 if (( DIST )); then
   VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
@@ -54,6 +52,9 @@ if (( DIST )); then
 fi
 
 if (( RUN )); then
+  # Só ao abrir este build para usar: registra o hubmac:// (retorno do login do SmartThings) apontando para ele.
+  # Builds de teste (selftest, release) não registram, senão o login iria para eles.
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
   pkill -x Hub 2>/dev/null || true
   while pgrep -x Hub >/dev/null; do sleep 0.2; done
   open -n "$APP"

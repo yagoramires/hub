@@ -98,25 +98,34 @@ struct ScreenView: View {
 
     // MARK: Casa
 
+    /// Largura (sem as margens da tela) a partir da qual a Casa fica em três colunas: o ar e o meio com ~256 pt cada (menos
+    /// que isso o seletor de modo do ar quebra) e o detalhe com 260 pt. No NeyHub: área do plugin de 844 pt, ou seja, a
+    /// janela com 1046 pt ou mais (170 da barra lateral, 32 da margem do NeyHub, 44 da margem da tela).
+    static let threeColumns: CGFloat = 800
+    /// O detalhe encolhe até aqui (as barras da luz afinam e as cores quebram em duas linhas).
+    static let detailWidth: CGFloat = 260
+    /// Abaixo disso a grade de aparelhos do meio fica com uma coluna (nomes inteiros em vez de "Luz…").
+    static let twoTileColumns: CGFloat = 330
+
     /// Larga: três colunas como no mockup. Média (a janela padrão do NeyHub): ar, TV e aparelhos numa coluna e o detalhe
-    /// ao lado. Estreita: uma coluna só, com o detalhe no fim. O detalhe tem a largura do popover: as barras e as cores da
-    /// luz não encolhem.
+    /// ao lado. Estreita: uma coluna só, com o detalhe no fim.
     @ViewBuilder private func casa(width: CGFloat) -> some View {
-        let detailWidth: CGFloat = 340
-        if width >= 960 {
-            let left = (width - 28 - detailWidth) * 0.47
+        let detailWidth = Self.detailWidth
+        if width >= Self.threeColumns {
+            let left = (width - 28 - detailWidth) * 0.5
+            let center = width - 28 - detailWidth - left
             HStack(alignment: .top, spacing: 14) {
                 column { climate }.frame(width: left)
-                column { middle }
+                column { middle(tileColumns: center >= Self.twoTileColumns ? 2 : 1) }
                 detail.frame(width: detailWidth).frame(maxHeight: .infinity, alignment: .top)
             }
-        } else if width >= 640 {
+        } else if width >= 560 {
             HStack(alignment: .top, spacing: 14) {
-                column { climate; middle }
+                column { climate; middle(tileColumns: width - 14 - detailWidth >= Self.twoTileColumns ? 2 : 1) }
                 detail.frame(width: detailWidth).frame(maxHeight: .infinity, alignment: .top)
             }
         } else {
-            column { climate; middle; detail }
+            column { climate; middle(tileColumns: 2); detail }
         }
     }
 
@@ -130,13 +139,13 @@ struct ScreenView: View {
         ForEach(store.climate) { ACCard(device: $0) }
     }
 
-    @ViewBuilder private var middle: some View {
+    @ViewBuilder private func middle(tileColumns: Int) -> some View {
         ForEach(store.televisions) { device in TVCard(device: device) { tab = .tv } }
-        TileGrid(devices: store.tiles, columns: 2) { tile in DeviceTile(device: tile, open: { selected = tile.id }, select: { selected = tile.id }) }
+        TileGrid(devices: store.tiles, columns: tileColumns) { tile in DeviceTile(device: tile, open: { selected = tile.id }, select: { selected = tile.id }) }
         ForEach(store.feeders) { feeder in FeederCard(device: feeder, select: { selected = feeder.id }) }
         if !store.remotes.isEmpty {
             SectionTitle(text: "Controles")
-            TileGrid(devices: store.remotes, columns: 2) { tile in DeviceTile(device: tile, open: { selected = tile.id }, select: { selected = tile.id }) }
+            TileGrid(devices: store.remotes, columns: tileColumns) { tile in DeviceTile(device: tile, open: { selected = tile.id }, select: { selected = tile.id }) }
         }
     }
 

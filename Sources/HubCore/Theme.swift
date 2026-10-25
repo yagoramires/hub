@@ -201,6 +201,27 @@ struct Icon: View {
     ]
 }
 
+/// Luz suave em elipse: o que antes era uma elipse com `.blur(radius: spread)`, feito com gradiente radial (o `--render`
+/// não desenha blur, e assim a tela e o PNG ficam iguais). Cheia no centro e some `spread` além da borda.
+struct SoftGlow: View {
+    let color: Color
+    let width: CGFloat
+    let height: CGFloat
+    var spread: CGFloat = 0
+
+    var body: some View {
+        let w = width + spread * 2, h = height + spread * 2
+        Ellipse()
+            .fill(RadialGradient(stops: [.init(color: color, location: 0), .init(color: color, location: 0.25),
+                                         .init(color: color.opacity(0), location: 1)],
+                                 center: .center, startRadius: 0, endRadius: w / 2))
+            .frame(width: w, height: w)
+            .scaleEffect(x: 1, y: h / w)
+            .frame(width: w, height: h)
+            .allowsHitTesting(false)
+    }
+}
+
 /// Pote de ração com grãos, no traço da Lucide (grade de 24, linha de 2). A Lucide não tem um.
 struct FoodBowl: Shape {
     func path(in rect: CGRect) -> Path {

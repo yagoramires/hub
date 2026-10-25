@@ -448,7 +448,7 @@ package final class ATVRemote {
     private var connection: ATVConnection?
     private var reconnect: Task<Void, Never>?
     private var failures = 0
-    private var stopped = false
+    private(set) var stopped = false
     /// PING | KEY | IME | POWER | VOLUME | APP_LINK. Sem IME a TV não conta qual app está aberto.
     private var features = 615
     /// Comandos dados enquanto a conexão estava caída; saem quando ela volta, se tiverem até 5 s.
@@ -492,8 +492,11 @@ package final class ATVRemote {
     }
 
     private func connect() async {
+        // stop() antes da Task rodar (desinstalar logo depois de abrir): não conecta nem gera o certificado.
+        guard !stopped else { return }
         let identity: SecIdentity
         do { identity = try ATVIdentity.load().identity } catch { return closed("\(error)") }
+        guard !stopped else { return }
         let connection = ATVConnection(host: host, port: 6466, identity: identity)
         self.connection = connection
         connection.onMessage = { [weak self] message in MainActor.assumeIsolated { self?.handle(message) } }
@@ -576,6 +579,8 @@ package final class ATVDiscovery {
 
     private var probes: [NWConnection] = []
     private var browsers: [NWBrowser] = []
+    /// Sem busca na rede em andamento (nenhum NWBrowser nem sonda).
+    var idle: Bool { browsers.isEmpty && probes.isEmpty }
 
     /// A TCL, por exemplo, não anuncia _androidtvremote2, só AirPlay, HomeKit e Cast. Então procura
     /// em todos e fica com quem tem a porta 6466 aberta.

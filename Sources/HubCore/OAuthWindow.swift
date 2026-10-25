@@ -11,12 +11,18 @@ final class OAuthWindow {
 
     private var state = ""
     private var completion: ((String) -> Void)?
+    /// Login esquecido no navegador não vale para sempre: depois disso o retorno é recusado.
+    static let lifetime: TimeInterval = 10 * 60
+    private var expires = Date.distantPast
+    /// Relógio; o selftest adianta.
+    var now: () -> Date = Date.init
     /// Abre o login no navegador; o selftest troca por um gravador.
     var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
     func start(url: URL, completion: @escaping (String) -> Void) {
         self.completion = completion
         state = UUID().uuidString
+        expires = now().addingTimeInterval(Self.lifetime)
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "state", value: state)]
         open(components.url!)
@@ -31,6 +37,11 @@ final class OAuthWindow {
               items.first(where: { $0.name == "state" })?.value == state, let done = completion
         else {
             debugLog("oauth: retorno sem code, com state errado ou sem login em andamento")
+            return false
+        }
+        guard now() < expires else {
+            completion = nil
+            debugLog("oauth: retorno depois de \(Int(Self.lifetime / 60)) min, login vencido")
             return false
         }
         completion = nil

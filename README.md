@@ -19,9 +19,9 @@ Requer macOS 15 ou mais novo. Roda nativo em Apple Silicon e Intel. Também dá 
 
 Quem usa o [NeyHub](https://github.com/yagoramires/neyhub) pode instalar o Hub pela Loja dele (o `Hub-x.y.z.neyplugin` do release). Aí o Hub roda dentro do NeyHub, com as mesmas contas, TVs pareadas e ajustes do avulso: o ícone e o popover da barra são os mesmos, a **tela do Hub** aparece na janela do NeyHub, o NeyHub cuida do login, das atualizações e de mostrar ou esconder o ícone, e os ajustes não têm **Abrir ao iniciar a sessão**, **Janela / Barra de menus**, **Sair** nem a linha **Atualização pronta**. Feche o Hub avulso antes: se o NeyHub já roda o Hub, o avulso avisa e fecha.
 
-O NeyHub roda no macOS 14, mas o Hub precisa do 15: num Mac com macOS 14 o card do Hub mostra **Precisa do macOS 15** e ele não carrega.
+O NeyHub roda no macOS 14, mas o Hub precisa do 15: num Mac com macOS 14 o card do Hub mostra **Precisa do macOS 15.0** e ele não carrega.
 
-O retorno do login do SmartThings (`hubmac://`) vai para um app só. Com o Hub instalado no NeyHub, entre pela Samsung de dentro do NeyHub: é ele quem recebe o retorno e entrega ao Hub (o avulso, aberto ao mesmo tempo, sai sozinho). Se o retorno não for de um login em andamento, o NeyHub avisa em vez de perder a URL em silêncio.
+O retorno do login do SmartThings (`hubmac://`) vai para um app só. Com o Hub instalado no NeyHub, entre pela Samsung de dentro do NeyHub: é ele quem recebe o retorno e entrega ao Hub (o avulso, aberto ao mesmo tempo, sai sozinho). Se o Hub avulso estiver aberto e receber o retorno enquanto o NeyHub roda o Hub, ele repassa a URL ao NeyHub antes de sair. Se o retorno não for de um login em andamento (ou chegar mais de 10 min depois de clicar em **Entrar com a Samsung**), o NeyHub avisa em vez de perder a URL em silêncio.
 
 ### Desinstalar
 
@@ -68,7 +68,7 @@ Em Ajustes também ficam **Abrir ao iniciar a sessão**, **Janela** e **Barra de
 
 No modo **Janela** do avulso, ou na janela do NeyHub, o Hub ganha uma tela inteira com o mesmo tema do popover (fonte arredondada, cartões grandes e o brilho de cada aparelho ligado no fundo). No topo, a saudação com o resumo da casa, as abas **Casa**, **TV** e **Ração**, ⟳ e ⚙︎.
 
-- **Casa**: o ar-condicionado à esquerda; a TV, os aparelhos (em duas colunas) e a ração no meio; à direita, o detalhe do aparelho escolhido, sempre aberto (o mesmo do popover: brilho, tom e cores da luz, porções e ajustes do alimentador…). Clique num aparelho para ver o detalhe ali; sem nada escolhido, aparece a dica. Numa janela mais estreita o ar, a TV e os aparelhos ficam numa coluna só, com o detalhe ao lado; bem estreita, tudo numa coluna.
+- **Casa**: o ar-condicionado à esquerda; a TV, os aparelhos (em duas colunas) e a ração no meio; à direita, o detalhe do aparelho escolhido, sempre aberto (o mesmo do popover: brilho, tom e cores da luz, porções e ajustes do alimentador…). Clique num aparelho para ver o detalhe ali; sem nada escolhido, aparece a dica. As três colunas aparecem a partir de 1046 pt de largura da janela do NeyHub (ou 844 pt na janela do avulso, que abre com 960). Mais estreita, o ar, a TV e os aparelhos ficam numa coluna só, com o detalhe ao lado (é o que a janela padrão do NeyHub mostra); bem estreita, tudo numa coluna.
 - **TV**: o controle completo (apps, touchpad ou setas, teclas, volume e busca). Clicar no cartão da TV na Casa também abre esta aba.
 - **Ração**: o alimentador e as refeições programadas.
 
@@ -108,7 +108,7 @@ Precisa só das Command Line Tools (`xcode-select --install`), não do Xcode.
 ```sh
 git clone https://github.com/yagoramires/hub.git && cd hub
 scripts/setup-signing.sh   # uma vez: certificado local de assinatura
-scripts/build.sh --run     # compila, assina e abre build/Hub.app
+scripts/build.sh --run     # compila, assina, registra o hubmac:// neste build e abre build/Hub.app
 scripts/selftest.sh        # testes; imprime "selftest ok"
 ```
 
@@ -126,7 +126,7 @@ Modo terminal, para depurar sem abrir a interface (usa os mesmos tokens do app):
 | `Hub --st <id> <capability> <comando> [argumentos JSON]` | Manda um comando SmartThings |
 | `Hub --import-st-app <saída.json>` | Guarda o app OAuth criado pelo SmartThings CLI |
 | `Hub --atv-scan` | Procura TVs Google TV / Android TV na rede |
-| `Hub --render <tela> <arquivo.png> [light\|dark]` | Desenha uma tela com aparelhos de exemplo, sem abrir nada na tela, sem rede e sem as credenciais: `home`, `device:ID`, `settings`, `settings:hosted` (os ajustes dentro do NeyHub), `screen` (a tela do Hub), `screen:tv`, `screen:racao`, `screen:narrow` e `screen:empty` |
+| `Hub --render <tela> <arquivo.png> [light\|dark]` | Desenha uma tela com aparelhos de exemplo, sem abrir nada na tela, sem rede e sem as credenciais: `home`, `device:ID`, `settings`, `settings:hosted` (os ajustes dentro do NeyHub), `screen` (a tela do Hub), `screen:tv`, `screen:racao`, `screen:narrow`, `screen:empty` e `screen@<largura>` (a Casa na largura que o NeyHub dá ao plugin: janela − 202) |
 | `Hub --selftest` | Roda as verificações internas e imprime `selftest ok` (rode com `scripts/selftest.sh`; usa uma pasta temporária e um Chaveiro falso, nunca as credenciais de verdade) |
 
 O binário fica em `build/Hub.app/Contents/MacOS/Hub`.
