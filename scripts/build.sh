@@ -33,7 +33,7 @@ cp -R Resources/Fonts "$APP/Contents/Resources/"
 # Assina com o certificado local fixo do Aero, para o macOS reconhecer o app entre builds.
 IDENTITY="Aero Local Signing"
 if ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
-  echo "⚠ sem certificado local: rode ../aero/scripts/setup-signing.sh, senão o macOS trata cada build como outro app"
+  echo "⚠ sem certificado local: rode scripts/setup-signing.sh, senão o macOS trata cada build como outro app"
   IDENTITY="-"
 fi
 codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
