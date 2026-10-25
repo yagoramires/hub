@@ -32,6 +32,24 @@ struct Meal: Identifiable, Equatable {
 
     var time: String { String(format: "%02d:%02d", hour, minute) }
 
+    /// Última refeição que já saiu e a próxima que vai sair, olhando uma semana para cada lado.
+    static func schedule(_ meals: [Meal], now: Date = Date(), calendar: Calendar = .current)
+        -> (previous: Date?, next: (date: Date, meal: Meal)?) {
+        let today = calendar.startOfDay(for: now)
+        var times: [(date: Date, meal: Meal)] = []
+        for offset in -7...7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            // weekday do Calendar: 1 = domingo … 7 = sábado; no plano, bit 0 = segunda … bit 6 = domingo.
+            let bit = (calendar.component(.weekday, from: day) + 5) % 7
+            for meal in meals where meal.enabled && meal.days & (1 << bit) != 0 {
+                if let date = calendar.date(bySettingHour: meal.hour, minute: meal.minute, second: 0, of: day) {
+                    times.append((date, meal))
+                }
+            }
+        }
+        return (times.filter { $0.date <= now }.map(\.date).max(), times.filter { $0.date > now }.min { $0.date < $1.date })
+    }
+
     var daysText: String {
         switch days & 0x7f {
         case 0x7f: "Todo dia"
@@ -49,7 +67,10 @@ struct MealPlanPanel: View {
     let device: HubDevice
 
     @Local private var editing: Meal?
-    @Local private var isNew = false
+    /// Posição da refeição no plano (o aparelho manda sem id). nil = refeição nova. Comparar pelo
+    /// conteúdo mexia em duas refeições iguais de uma vez.
+    @Local private var editingIndex: Int?
+    private var isNew: Bool { editingIndex == nil }
 
     private static let maxMeals = 10
     private var meals: [Meal] { Meal.decode(device.status["meal_plan"]?.string) }
@@ -59,23 +80,23 @@ struct MealPlanPanel: View {
         Panel(title: "Refeições programadas") {
             if let editing {
                 MealEditor(meal: editing, maxPortions: maxPortions, isNew: isNew,
-                           save: { save($0) }, delete: { delete(editing) }, cancel: { self.editing = nil })
+                           save: { save($0) }, delete: { editingIndex.map(delete(at:)) }, cancel: { self.editing = nil })
             } else {
                 if meals.isEmpty {
                     Text("Nenhuma refeição programada.")
-                        .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                        .font(Theme.font(11.5)).foregroundStyle(.secondary)
                 }
-                ForEach(meals) { meal in
+                ForEach(Array(meals.enumerated()), id: \.offset) { index, meal in
                     HStack(spacing: 10) {
-                        Button { isNew = false; editing = meal } label: {
+                        Button { editingIndex = index; editing = meal } label: {
                             HStack(spacing: 10) {
                                 Text(meal.time)
-                                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                    .font(Theme.font(17, .semibold))
                                     .monospacedDigit()
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text(meal.portions == 1 ? "1 porção" : "\(meal.portions) porções")
-                                        .font(.system(size: 11.5, weight: .medium))
-                                    Text(meal.daysText).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                                        .font(Theme.font(11.5, .medium))
+                                    Text(meal.daysText).font(Theme.font(10.5)).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                             }
@@ -84,9 +105,10 @@ struct MealPlanPanel: View {
                         }
                         .buttonStyle(.plain)
                         Toggle("", isOn: Binding(get: { meal.enabled }, set: { on in
-                            var changed = meal
-                            changed.enabled = on
-                            write(meals.map { $0.matches(meal) ? changed : $0 })
+                            var list = meals
+                            guard index < list.count else { return }
+                            list[index].enabled = on
+                            write(list)
                         }))
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -97,11 +119,11 @@ struct MealPlanPanel: View {
                 }
                 if meals.count < Self.maxMeals {
                     Button {
-                        isNew = true
+                        editingIndex = nil
                         editing = Meal()
                     } label: {
-                        Label("Adicionar refeição", systemImage: "plus.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                        Label { Text("Adicionar refeição") } icon: { Icon("plus.circle.fill", size: 12) }
+                            .font(Theme.font(12, .semibold))
                             .foregroundStyle(Theme.accent(.feeder))
                     }
                     .buttonStyle(.plain)
@@ -113,7 +135,7 @@ struct MealPlanPanel: View {
 
     private func save(_ meal: Meal) {
         var list = meals
-        if let index = list.firstIndex(where: { $0.matches(editing ?? meal) }), !isNew {
+        if let index = editingIndex, index < list.count {
             list[index] = meal
         } else {
             list.append(meal)
@@ -122,21 +144,15 @@ struct MealPlanPanel: View {
         editing = nil
     }
 
-    private func delete(_ meal: Meal) {
-        write(meals.filter { !$0.matches(meal) })
+    private func delete(at index: Int) {
+        var list = meals
+        if index < list.count { list.remove(at: index) }
+        write(list)
         editing = nil
     }
 
     private func write(_ list: [Meal]) {
         store.setTuya(device, "meal_plan", Meal.encode(list))
-    }
-}
-
-private extension Meal {
-    /// As refeições vêm do aparelho sem id; compara pelo conteúdo.
-    func matches(_ other: Meal) -> Bool {
-        days == other.days && hour == other.hour && minute == other.minute
-            && portions == other.portions && enabled == other.enabled
     }
 }
 
@@ -166,7 +182,7 @@ struct MealEditor: View {
         VStack(spacing: 12) {
             HStack(spacing: 18) {
                 TimeWheel(value: $meal.hour, range: 0...23)
-                Text(":").font(.system(size: 30, weight: .light, design: .rounded)).padding(.bottom, 4)
+                Text(":").font(Theme.font(30, .light)).padding(.bottom, 4)
                 TimeWheel(value: $meal.minute, range: 0...59, step: 5)
             }
             .frame(maxWidth: .infinity)
@@ -174,7 +190,7 @@ struct MealEditor: View {
             HStack(spacing: 12) {
                 StepperButton(symbol: "minus") { meal.portions = max(1, meal.portions - 1) }
                 Text(meal.portions == 1 ? "1 porção" : "\(meal.portions) porções")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(Theme.font(13, .semibold))
                     .frame(minWidth: 80)
                 StepperButton(symbol: "plus") { meal.portions = min(maxPortions, meal.portions + 1) }
             }
@@ -186,7 +202,7 @@ struct MealEditor: View {
                         meal.days ^= 1 << day
                     } label: {
                         Text(Meal.dayLetters[day])
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(Theme.font(11, .bold))
                             .frame(width: 30, height: 30)
                             .foregroundStyle(on ? .white : .secondary)
                             .background(Circle().fill(on ? Theme.accent(.feeder) : Color.primary.opacity(0.08)))
@@ -222,7 +238,7 @@ struct TimeWheel: View {
         VStack(spacing: 2) {
             arrow("chevron.up", +step)
             Text(String(format: "%02d", value))
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(Theme.font(34, .semibold))
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(value)))
             arrow("chevron.down", -step)
@@ -237,8 +253,7 @@ struct TimeWheel: View {
             let next = ((value - value % step) + delta - range.lowerBound + span) % span + range.lowerBound
             value = next
         } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .bold))
+            Icon(symbol, size: 11)
                 .frame(width: 44, height: 18)
                 .background(Capsule().fill(Color.primary.opacity(0.07)))
                 .contentShape(Capsule())

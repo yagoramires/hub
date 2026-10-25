@@ -12,6 +12,9 @@ final class SmartThingsClient {
 
     private(set) var auth: SmartThingsAuth
     var onTokenChange: ((SmartThingsAuth) -> Void)?
+    /// Renovação em andamento: a Samsung troca o refresh token a cada uso, então dois pedidos
+    /// renovando juntos fazem o segundo ser recusado. Quem chega depois espera esta.
+    private var refreshing: Task<Void, Error>?
 
     init(auth: SmartThingsAuth) {
         self.auth = auth
@@ -71,12 +74,18 @@ final class SmartThingsClient {
     /// Renova se faltar menos de 10 minutos, ou sempre quando `force` (o refresh token também
     /// vence se ficar 30 dias parado, então o app renova pelo menos uma vez por dia).
     func refreshIfNeeded(force: Bool = false) async throws {
+        if let refreshing { return try await refreshing.value }
         guard canRefresh, force || auth.expiresAt.timeIntervalSinceNow < 600 else { return }
-        auth = try await Self.token(form: [
-            "grant_type": "refresh_token", "client_id": auth.clientId, "refresh_token": auth.refreshToken,
-        ], clientId: auth.clientId, clientSecret: auth.clientSecret)
-        onTokenChange?(auth)
-        debugLog("smartthings: token renovado")
+        let task = Task { @MainActor in
+            auth = try await Self.token(form: [
+                "grant_type": "refresh_token", "client_id": auth.clientId, "refresh_token": auth.refreshToken,
+            ], clientId: auth.clientId, clientSecret: auth.clientSecret)
+            onTokenChange?(auth)
+            debugLog("smartthings: token renovado")
+        }
+        refreshing = task
+        defer { refreshing = nil }
+        try await task.value
     }
 
     // MARK: Aparelhos

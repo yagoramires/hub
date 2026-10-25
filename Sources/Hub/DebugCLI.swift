@@ -13,8 +13,29 @@ enum DebugCLI {
             return print("app na TV: \(remote.app ?? "não informado")")
         }
         if arguments.first == "--selftest" {
-            assert(ADB.inputText("Ação 2'") == "Acao%s2'\\''", ADB.inputText("Ação 2'"))
-            assert(ADB.inputText("Stranger Things") == "Stranger%sThings")
+            precondition(ADB.inputText("Ação 2'") == "Acao%s2'\\''", ADB.inputText("Ação 2'"))
+            precondition(ADB.inputText("Stranger Things") == "Stranger%sThings")
+            // O plano gravado no alimentador tem que sair igual ao que foi lido (senão apaga refeições).
+            let stored = "fwYAAgF/DAABAAATAAIBfxUAAQA="
+            precondition(Meal.encode(Meal.decode(stored)) == stored, "plano: \(Meal.encode(Meal.decode(stored)))")
+            precondition(Meal.encode([]) == "AA==" && Meal.decode("AA==").isEmpty)
+            // Campo 1 com tamanho 2^64-1: tem que ser recusado, não travar o app.
+            precondition(PBMessage(Data([0x0a] + [UInt8](repeating: 0xff, count: 9) + [0x01])) == nil)
+            let secret = "0123456789abcdef"
+            let sealed = try! TuyaClient.encrypt("{\"a\":1}", secret: secret)
+            precondition(String(data: try! TuyaClient.decrypt(sealed, secret: secret), encoding: .utf8) == "{\"a\":1}")
+            // Sábado 24/10/2026 22:40 (o selftest roda em release, por isso precondition e não assert); 06:00 todo dia e 19:00 só no domingo (bit 6).
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+            let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 24, hour: 22, minute: 40))!
+            let plan = [Meal(days: 0x7f, hour: 6, portions: 2), Meal(days: 0x40, hour: 19), Meal(hour: 12, enabled: false)]
+            let schedule = Meal.schedule(plan, now: now, calendar: calendar)
+            let next = schedule.next.map { calendar.dateComponents([.day, .hour], from: $0.date) }
+            precondition(next?.day == 25 && next?.hour == 6, "próxima: \(String(describing: next))")
+            let previous = schedule.previous.map { calendar.dateComponents([.day, .hour], from: $0) }
+            precondition(previous?.day == 24 && previous?.hour == 6, "anterior: \(String(describing: previous))")
+            let sunday = Meal.schedule([plan[1]], now: now, calendar: calendar).next.map { calendar.dateComponents([.day, .hour], from: $0.date) }
+            precondition(sunday?.day == 25 && sunday?.hour == 19, "domingo: \(String(describing: sunday))")
             return print("✓ selftest")
         }
         if arguments.first == "--atv-scan" {
@@ -73,6 +94,7 @@ enum DebugCLI {
 
     /// Desenha uma tela com aparelhos de exemplo num PNG, sem abrir nada na tela do usuário.
     /// Hub --render <home|device:ID|settings> <arquivo.png> [light|dark]
+    /// Para ver com os aparelhos de verdade: open -n build/Hub.app --args --show e um print da janela.
     private static func render(_ arguments: [String]) {
         guard arguments.count >= 3 else { return print("uso: Hub --render <home|device:ID|settings> <arquivo.png> [light|dark]") }
         let dark = !(arguments.count > 3 && arguments[3] == "light")

@@ -27,6 +27,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Hub"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp -R Resources/AppLogos "$APP/Contents/Resources/"
+cp -R Resources/Fonts "$APP/Contents/Resources/"
 
 # Assina com o certificado local fixo do Aero, para o macOS reconhecer o app entre builds.
 IDENTITY="Aero Local Signing"

@@ -83,11 +83,11 @@ final class TuyaClient {
 
     // MARK: Casas e aparelhos
 
-    struct Home { let id: String; let name: String }
+    struct Home { let id: String }
 
     func homes() async throws -> [Home] {
         let result = try await call("GET", "/v1.0/m/life/users/homes") as? [[String: Any]] ?? []
-        return result.map { Home(id: "\($0["ownerId"] ?? "")", name: $0["name"] as? String ?? "") }
+        return result.map { Home(id: "\($0["ownerId"] ?? "")") }
     }
 
     func devices(home: String) async throws -> [[String: Any]] {
@@ -156,15 +156,17 @@ final class TuyaClient {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        // A renovação leva o refresh token no caminho: no log ele vira "…".
+        let shown = path.hasPrefix("/v1.0/m/token/") ? "/v1.0/m/token/…" : path
         guard (200..<300).contains(code),
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            debugLog("tuya \(method) \(path): HTTP \(code)")
+            debugLog("tuya \(method) \(shown): HTTP \(code)")
             throw TuyaError.server("HTTP \(code)")
         }
         guard json["success"] as? Bool == true else {
             let message = json["msg"] as? String ?? "erro"
-            debugLog("tuya \(method) \(path): \(json["code"] ?? "") \(message)")
+            debugLog("tuya \(method) \(shown): \(json["code"] ?? "") \(message)")
             throw TuyaError.server(message)
         }
         guard let encrypted = json["result"] as? String else { return json["result"] }

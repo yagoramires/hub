@@ -8,7 +8,8 @@ import AppKit
 //   Hub --atv-scan                          procura TVs Google TV / Android TV na rede
 //   Hub --render <tela> <arquivo.png>      desenha uma tela com aparelhos de exemplo
 let arguments = CommandLine.arguments
-if arguments.count > 1, arguments[1].hasPrefix("--") {
+MainActor.assumeIsolated { Theme.registerFonts() }
+if arguments.count > 1, arguments[1].hasPrefix("--"), arguments[1] != "--show" {
     Task { @MainActor in
         await DebugCLI.run(Array(arguments.dropFirst()))
         exit(0)

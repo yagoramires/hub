@@ -29,7 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         debugLog("iniciou · Hub \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") · macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        Task { @MainActor in await store.refresh() }
+        Task { @MainActor in
+            await store.refresh()
+            // open -n Hub.app --args --show: abre o popover sozinho, para conferir a interface com os aparelhos de verdade.
+            if CommandLine.arguments.contains("--show") { showPopover() }
+        }
         if !store.hasAccounts {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.showPopover()

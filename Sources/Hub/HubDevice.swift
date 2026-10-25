@@ -88,6 +88,30 @@ struct HubDevice: Identifiable, Equatable {
         return (spec?.scaled(raw) ?? raw, spec?.unit ?? "")
     }
 
+    // MARK: Luz (Tuya)
+
+    var brightnessSpec: DPSpec? { functions["bright_value_v2"] ?? functions["bright_value"] }
+
+    /// Brilho de 0 a 1, ou nil se a luz não regula.
+    var brightness: Double? {
+        // No modo colorido o brilho é o v do colour_data; o bright_value só vale para a branca.
+        if status["work_mode"]?.string == "colour", let colour { return colour.v }
+        guard let spec = brightnessSpec, spec.max > spec.min, let raw = status[spec.code]?.number else { return nil }
+        return min(max((raw - spec.min) / (spec.max - spec.min), 0), 1)
+    }
+
+    var colourCode: String? { ["colour_data_v2", "colour_data"].first { functions[$0] != nil } }
+
+    /// Cor atual: h de 0 a 360, s e v de 0 a 1 (a v2 vai até 1000, a antiga até 255).
+    var colour: (h: Double, s: Double, v: Double)? {
+        guard let code = colourCode, let text = status[code]?.string,
+              let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+              let h = (json["h"] as? NSNumber)?.doubleValue, let s = (json["s"] as? NSNumber)?.doubleValue,
+              let v = (json["v"] as? NSNumber)?.doubleValue else { return nil }
+        let top = code == "colour_data_v2" ? 1000.0 : 255.0
+        return (h, s / top, v / top)
+    }
+
     // MARK: Ar-condicionado (SmartThings)
 
     var acMode: String? { status["airConditionerMode.airConditionerMode"]?.string }

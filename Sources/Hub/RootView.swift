@@ -32,9 +32,12 @@ struct RootView: View {
             }
         }
         .frame(width: 380)
+        .font(Theme.font(13))
+        // Sem ignorar a área segura, sobrava a faixa cinza do popover na borda.
+        .background(Theme.room.ignoresSafeArea())
         .onReceive(NotificationCenter.default.publisher(for: .hubPopoverClosed)) { _ in
             // Ao reabrir, começa sempre do início (menos se estiver no meio de um pareamento).
-            if store.pairing == nil { route = .home }
+            if store.pairing == nil, store.tvPairing == nil { route = .home }
         }
         .onReceive(NotificationCenter.default.publisher(for: .hubOpenSettings)) { _ in route = .settings }
     }
@@ -57,8 +60,9 @@ struct HomeView: View {
     private var climate: [HubDevice] { store.devices.filter { $0.kind == .airConditioner && $0.source == .smartThings } }
     private var tvs: [HubDevice] { store.devices.filter { $0.kind == .tv } }
     private var tiles: [HubDevice] {
-        store.devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && $0.kind != .remote && $0.kind != .tv }
+        store.devices.filter { !($0.kind == .airConditioner && $0.source == .smartThings) && ![.remote, .tv, .feeder].contains($0.kind) }
     }
+    private var feeders: [HubDevice] { store.devices.filter { $0.kind == .feeder } }
     private var remotes: [HubDevice] { store.devices.filter { $0.kind == .remote } }
 
     var body: some View {
@@ -87,17 +91,18 @@ struct HomeView: View {
                     if store.loadedOnce { Text("Nenhum aparelho encontrado").foregroundStyle(.secondary) }
                     else { ProgressView().controlSize(.small); Text("Buscando aparelhos…").foregroundStyle(.secondary) }
                 }
-                .font(.system(size: 12))
+                .font(Theme.font(12))
                 .frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 Scroller {
                     VStack(spacing: 10) {
                         ForEach(climate) { ACCard(device: $0) }
                         ForEach(tvs) { device in TVCard(device: device) { open(device.id) } }
-                        TileGrid(devices: tiles, open: open)
+                        TileGrid(devices: tiles, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
+                        TileGrid(devices: feeders, columns: 1) { FeederCard(device: $0) }
                         if !remotes.isEmpty {
                             SectionTitle(text: "Controles")
-                            TileGrid(devices: remotes, open: open)
+                            TileGrid(devices: remotes, columns: 2) { tile in DeviceTile(device: tile) { open(tile.id) } }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -110,8 +115,8 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(greeting).font(.system(size: 19, weight: .semibold, design: .rounded))
-                Text(summary).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                Text(greeting).font(Theme.font(20, .semibold))
+                Text(summary).font(Theme.font(12)).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()
             IconButton(symbol: "arrow.clockwise", help: "Atualizar") { Task { await store.refresh() } }
@@ -129,31 +134,40 @@ struct HomeView: View {
         }
     }
 
+    /// A casa numa frase: "Ar em 23°, Luz da sala acesa, TV no YouTube".
     private var summary: String {
-        let online = store.devices.filter(\.online)
         guard !store.devices.isEmpty else { return store.hasAccounts ? "Casa" : "Nenhuma conta conectada" }
-        let on = online.filter(\.isOn).count
-        var text = on == 0 ? "Tudo desligado" : on == 1 ? "1 aparelho ligado" : "\(on) aparelhos ligados"
-        let offline = store.devices.count - online.count
-        if offline > 0 { text += " · \(offline) offline" }
-        return text
+        let on = store.devices.filter { $0.online && $0.isOn }
+        var parts: [String] = []
+        for ac in on where ac.kind == .airConditioner {
+            parts.append(ac.acSetpoint.map { "Ar em \($0.short)°" } ?? "Ar ligado")
+        }
+        let lights = on.filter { $0.kind == .light }
+        if lights.count == 1 { parts.append("\(lights[0].name) acesa") } else if lights.count > 1 { parts.append("\(lights.count) luzes acesas") }
+        for tv in on where tv.kind == .tv {
+            parts.append(tv.status["app"]?.string.flatMap(TVApps.name(of:)).map { $0 == "Início" ? "TV ligada" : "TV no \($0)" } ?? "TV ligada")
+        }
+        // Só tomadas e afins ligados: a contagem basta.
+        if parts.isEmpty { parts.append(on.isEmpty ? "Tudo desligado" : on.count == 1 ? "1 aparelho ligado" : "\(on.count) aparelhos ligados") }
+        let offline = store.devices.filter { !$0.online }.count
+        if offline > 0 { parts.append(offline == 1 ? "1 sem conexão" : "\(offline) sem conexão") }
+        return parts.joined(separator: ", ")
     }
 }
 
-/// Grade de duas colunas. São poucos aparelhos, então não precisa ser lazy.
-struct TileGrid: View {
+/// Grade de colunas iguais. São poucos aparelhos, então não precisa ser lazy.
+struct TileGrid<Tile: View>: View {
     let devices: [HubDevice]
-    let open: (String) -> Void
+    let columns: Int
+    @ViewBuilder let tile: (HubDevice) -> Tile
 
     var body: some View {
         Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            ForEach(Array(stride(from: 0, to: devices.count, by: 2)), id: \.self) { index in
+            ForEach(Array(stride(from: 0, to: devices.count, by: columns)), id: \.self) { index in
                 GridRow {
-                    DeviceTile(device: devices[index]) { open(devices[index].id) }
-                    if index + 1 < devices.count {
-                        DeviceTile(device: devices[index + 1]) { open(devices[index + 1].id) }
-                    } else {
-                        Color.clear.frame(height: 1)
+                    ForEach(index..<index + columns, id: \.self) { slot in
+                        // .id do aparelho: aparelho novo antes na lista não herda o menu aberto de outro.
+                        if slot < devices.count { tile(devices[slot]).id(devices[slot].id) } else { Color.clear.frame(height: 1) }
                     }
                 }
             }
@@ -164,8 +178,8 @@ struct TileGrid: View {
 struct SectionTitle: View {
     let text: String
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 10, weight: .bold))
+        Text(text)
+            .font(Theme.font(12, .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 6)
@@ -179,10 +193,10 @@ struct ErrorBanner: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            Text(text).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+            Icon("exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Text(text).font(Theme.font(11)).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
+            Button(action: dismiss) { Icon("xmark", size: 9) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
         }
@@ -196,12 +210,11 @@ struct EmptyState: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "house.lodge.fill")
-                .font(.system(size: 30))
+            Icon("house.lodge.fill", size: 30)
                 .foregroundStyle(LinearGradient(colors: [.orange, .pink], startPoint: .top, endPoint: .bottom))
-            Text("Conecte suas contas").font(.system(size: 14, weight: .semibold, design: .rounded))
+            Text("Conecte suas contas").font(Theme.font(14, .semibold))
             Text("Smart Life, Tuya Smart e Positivo para a casa;\nSmartThings para o ar-condicionado.")
-                .font(.system(size: 11.5))
+                .font(Theme.font(11.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Conectar", action: settings)

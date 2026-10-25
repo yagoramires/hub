@@ -7,12 +7,29 @@ enum TVApps {
         var id: String { link }
 
         var color: Color {
-            if let known = TVApps.colors[name] { return known }
+            if let known = TVApps.colors[name] { return Color(hex: known) }
             // App adicionado pelo usuário: cor estável a partir do nome.
             let hue = Double(name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360
             return Color(hue: hue, saturation: 0.6, brightness: 0.75)
         }
+
+        var package: String? {
+            link.hasPrefix(TVApps.launchPrefix) ? String(link.dropFirst(TVApps.launchPrefix.count)) : TVApps.linkPackages[link]
+        }
+
+        /// Ícone da Play Store guardado em Resources/AppLogos; app sem ícone fica com o nome.
+        var logo: NSImage? {
+            package.flatMap { Bundle.main.url(forResource: $0, withExtension: "png", subdirectory: "AppLogos") }
+                .flatMap(NSImage.init(contentsOf:))
+        }
     }
+
+    static let launchPrefix = "market://launch?id="
+    private static let linkPackages = [
+        "https://www.youtube.com": "com.google.android.youtube.tv", "netflix://": "com.netflix.ninja",
+        "https://app.primevideo.com": "com.amazon.amazonvideo.livingroom", "https://www.disneyplus.com": "com.disney.disneyplus",
+        "spotify://": "com.spotify.tv.android", "twitch://home": "tv.twitch.android.app",
+    ]
 
     /// Links documentados pelo Home Assistant; o resto abre pelo pacote (market://launch?id=…).
     static let defaults: [App] = [
@@ -23,30 +40,45 @@ enum TVApps {
         App(name: "Globoplay", link: "market://launch?id=com.globo.globotv"),
         App(name: "Spotify", link: "spotify://"),
         App(name: "Max", link: "market://launch?id=com.wbd.stream"),
+        App(name: "Apple TV", link: "market://launch?id=com.apple.atve.androidtv.appletv"),
         App(name: "Twitch", link: "twitch://home"),
         App(name: "Crunchyroll", link: "market://launch?id=com.crunchyroll.crunchyroid"),
         App(name: "Pluto TV", link: "market://launch?id=tv.pluto.android"),
     ]
 
-    private static let colors: [String: Color] = [
-        "YouTube": Color(red: 0.93, green: 0.13, blue: 0.13), "Netflix": Color(red: 0.75, green: 0.04, blue: 0.08),
-        "Prime": Color(red: 0.0, green: 0.66, blue: 0.88), "Disney+": Color(red: 0.07, green: 0.2, blue: 0.55),
-        "Globoplay": Color(red: 0.98, green: 0.36, blue: 0.13), "Spotify": Color(red: 0.11, green: 0.73, blue: 0.33),
-        "Max": Color(red: 0.0, green: 0.2, blue: 0.85), "Twitch": Color(red: 0.57, green: 0.27, blue: 1.0),
-        "Crunchyroll": Color(red: 0.96, green: 0.46, blue: 0.13), "Pluto TV": Color(red: 0.2, green: 0.2, blue: 0.25),
+    /// Cor de cada app: vira a luz da TV no Hub quando ele está aberto.
+    private static let colors: [String: UInt32] = [
+        "YouTube": 0xFF1F2D, "Netflix": 0xE50914, "Prime": 0x1AA8E8, "Prime Video": 0x1AA8E8, "Disney+": 0x13708F,
+        "Globoplay": 0xFF2D55, "Spotify": 0x1ED760, "Max": 0x4B3BFF, "Twitch": 0x9146FF, "Crunchyroll": 0xF47521,
+        "Pluto TV": 0xFFD400, "Apple TV": 0x6E8BFF,
     ]
 
     private static let key = "tvApps"
+    static let changed = Notification.Name("hubTVAppsChanged")
+    /// Lida do disco uma vez; o resto do app usa esta cópia.
+    private static var cached: [App]?
 
     static func load() -> [App] {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let apps = try? JSONDecoder().decode([App].self, from: data) else { return defaults }
-        // com.hbo.hbonow não existe nessa TV; o Max dela é com.wbd.stream (listas salvas com o nome errado).
-        return apps.map { $0.link == "market://launch?id=com.hbo.hbonow" ? App(name: $0.name, link: "market://launch?id=com.wbd.stream") : $0 }
+        if let cached { return cached }
+        let apps = (UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([App].self, from: $0) } ?? defaults)
+            // com.hbo.hbonow não existe nessa TV; o Max dela é com.wbd.stream (listas salvas com o nome errado).
+            .map { $0.link == "market://launch?id=com.hbo.hbonow" ? App(name: $0.name, link: "market://launch?id=com.wbd.stream") : $0 }
+        cached = apps
+        return apps
     }
 
     static func save(_ apps: [App]) {
+        cached = apps
         UserDefaults.standard.set(try? JSONEncoder().encode(apps), forKey: key)
+        NotificationCenter.default.post(name: changed, object: nil)
+    }
+
+    /// O app aberto na TV como botão: o da lista, se houver, senão um montado pelo pacote.
+    static func app(package: String?, in apps: [App]) -> App? {
+        guard let package, !package.isEmpty, name(of: package) != "Início" else { return nil }
+        return apps.first { $0.package == package }
+            ?? App(name: name(of: package) ?? package.split(separator: ".").last.map { $0.capitalized } ?? package,
+                   link: launchPrefix + package)
     }
 
     /// Apps que abrem a busca pelo link mas ignoram o texto; o Hub digita depois.
@@ -71,6 +103,7 @@ enum TVApps {
             "com.amazon.amazonvideo.livingroom": "Prime Video", "com.disney.disneyplus": "Disney+",
             "com.globo.globotv": "Globoplay", "com.spotify.tv.android": "Spotify", "com.hbo.hbonow": "Max", "com.wbd.stream": "Max",
             "tv.twitch.android.app": "Twitch", "com.crunchyroll.crunchyroid": "Crunchyroll", "tv.pluto.android": "Pluto TV",
+            "com.apple.atve.androidtv.appletv": "Apple TV",
             "com.google.android.apps.tv.launcherx": "Início", "com.google.android.tvlauncher": "Início",
         ]
         return known[package]
@@ -78,126 +111,191 @@ enum TVApps {
 
     /// App que está aberto na TV, pronto para virar botão (nil se for a tela inicial ou já estiver na lista).
     static func fromCurrent(_ package: String?, existing: [App]) -> App? {
-        guard let package, !package.isEmpty, name(of: package) != "Início" else { return nil }
-        let app = App(name: name(of: package) ?? package.split(separator: ".").last.map { $0.capitalized } ?? package,
-                      link: "market://launch?id=\(package)")
+        guard let app = app(package: package, in: existing) else { return nil }
         return existing.contains { $0.link == app.link || $0.name == app.name } ? nil : app
     }
 }
 
 extension HubDevice {
     var tvStatus: String {
-        guard online else { return status["needs_pairing"]?.bool == true ? "Precisa parear de novo" : "Fora do ar" }
+        guard online else { return status["needs_pairing"]?.bool == true ? "Precisa parear de novo" : "Sem conexão" }
         guard isOn else { return "Em espera" }
-        if let package = status["app"]?.string, let app = TVApps.name(of: package) { return "Ligada · \(app)" }
+        if let package = status["app"]?.string, let app = TVApps.name(of: package) {
+            return app == "Início" ? "Na tela inicial" : "\(app) aberto"
+        }
         return "Ligada"
+    }
+
+    /// Luz da TV no Hub: a cor do app aberto (ou o coral da TV na tela inicial).
+    func tvLight(_ apps: [TVApps.App]) -> Color {
+        TVApps.app(package: status["app"]?.string, in: apps)?.color ?? Theme.accent(.tv)
     }
 }
 
-/// Cartão da TV na tela principal: liga/desliga, volume e atalho para o controle completo.
+extension Color {
+    /// Cores claras (Spotify, Prime, Apple TV) pedem texto escuro por cima.
+    var prefersDarkInk: Bool {
+        guard let rgb = NSColor(self).usingColorSpace(.sRGB) else { return false }
+        return 0.2126 * rgb.redComponent + 0.7152 * rgb.greenComponent + 0.0722 * rgb.blueComponent > 0.5
+    }
+
+    var ink: Color { prefersDarkInk ? Color.black.opacity(0.85) : .white }
+}
+
+/// Cartão da TV na tela principal: brilha na cor do app aberto, com os apps e o volume à mão.
 struct TVCard: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
     let open: () -> Void
+    @Local private var apps = TVApps.load()
 
-    private var accent: Color { Theme.accent(.tv) }
+    private var on: Bool { device.online && device.isOn }
+    private var light: Color { device.tvLight(apps) }
+    private var current: TVApps.App? { TVApps.app(package: device.status["app"]?.string, in: apps) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "tv.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(device.isOn ? .white : .secondary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(device.isOn ? accent : Color.primary.opacity(0.08)))
-                    .shadow(color: device.isOn ? accent.opacity(0.5) : .clear, radius: 8, y: 2)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(device.name).font(.system(size: 13, weight: .semibold, design: .rounded)).lineLimit(1)
-                    Text(device.tvStatus).font(.system(size: 11)).foregroundStyle(.secondary)
+                Group {
+                    if on, let current {
+                        AppLogo(app: current, corner: 10).shadow(color: light.opacity(0.5), radius: 10)
+                    } else {
+                        Icon("tv.fill", size: 14)
+                            .foregroundStyle(on ? light : Color.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.well))
+                    }
+                }
+                .frame(width: 36, height: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.name).font(Theme.font(13.5, .semibold)).lineLimit(1)
+                    Text(device.tvStatus).font(Theme.font(11.5)).foregroundStyle(.secondary)
                 }
                 Spacer()
-                PowerButton(on: device.isOn, tint: accent) { store.toggle(device) }
+                Button(action: open) {
+                    Icon("av.remote.fill", size: 13)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Theme.well))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressStyle())
+                .help("Controle")
+                GlowPower(on: on, color: light, ink: light.ink) { store.toggle(device) }
                     .disabled(!device.online)
             }
-            if device.online {
-                HStack(spacing: 6) {
-                    RoundKey(symbol: device.status["muted"]?.bool == true ? "speaker.slash.fill" : "speaker.fill") {
-                        store.tvKey(device, .mute)
+            if on {
+                HStack(spacing: 8) {
+                    ForEach(apps.prefix(6)) { app in
+                        let open = app.package == current?.package
+                        Button { store.tvLaunch(device, app.link) } label: {
+                            AppLogo(app: app, corner: 13)
+                                .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                    .strokeBorder(open ? app.color : .clear, lineWidth: 2).padding(-4))
+                                .shadow(color: open ? app.color.opacity(0.45) : .clear, radius: 9)
+                        }
+                        .buttonStyle(PressStyle())
+                        .help(app.name)
+                        .accessibilityLabel("Abrir \(app.name)")
                     }
-                    RoundKey(symbol: "minus") { store.tvKey(device, .volumeDown) }
-                    VolumeBar(device: device)
-                    RoundKey(symbol: "plus") { store.tvKey(device, .volumeUp) }
-                    Button(action: open) {
-                        Label("Controle", systemImage: "av.remote.fill")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .padding(.horizontal, 10)
-                            .frame(height: 30)
-                            .background(Capsule().fill(accent.opacity(0.18)))
-                            .foregroundStyle(accent)
-                    }
-                    .buttonStyle(PressStyle())
                 }
+                .padding(.horizontal, 2)
+                VolumeSlider(device: device, tint: light)
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .fill(device.isOn ? accent.opacity(0.12) : Color.primary.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .strokeBorder(device.isOn ? accent.opacity(0.4) : .clear, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: open)
+        .card(on ? light.opacity(0.08) : Theme.matte, edge: on ? light.opacity(0.3) : nil)
+        .background(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous).fill(Theme.matte))
+        .glow(light, on: on, radius: 38, opacity: 0.35)
+        .animation(.easeOut(duration: 0.3), value: device.status["app"]?.string)
+        .onReceive(NotificationCenter.default.publisher(for: TVApps.changed)) { _ in apps = TVApps.load() }
     }
 }
 
-struct VolumeBar: View {
+/// Barra de volume estilo Central de Controle: arrastar escolhe o volume, o alto-falante tira o som.
+struct VolumeSlider: View {
+    @EnvironmentObject private var store: HubStore
     let device: HubDevice
+    let tint: Color
+    var height: CGFloat = 34
+    @Local private var dragging: Double?
 
     var body: some View {
-        let level = device.status["volume"]?.number ?? 0
         let maximum = max(device.status["volume_max"]?.number ?? 100, 1)
+        let level = device.status["volume"]?.number ?? 0
         let muted = device.status["muted"]?.bool == true
+        let fraction = dragging ?? level / maximum
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.08))
-                Capsule().fill(Theme.accent(.tv).opacity(muted ? 0.3 : 0.8))
-                    .frame(width: max(6, geometry.size.width * level / maximum))
+                Rectangle().fill(Theme.well)
+                Rectangle().fill(tint.opacity(muted ? 0.35 : 1))
+                    .frame(width: max(height, geometry.size.width * fraction))
+                HStack {
+                    Icon(muted ? "speaker.slash.fill" : "speaker.wave.2.fill", size: 12)
+                        .foregroundStyle(tint.ink)
+                        .frame(width: height, height: height)
+                    Spacer()
+                    Text(muted ? "mudo" : "\(Int((fraction * maximum).rounded()))")
+                        .font(Theme.number(12.5, .bold))
+                        .monospacedDigit()
+                        .padding(.trailing, 12)
+                }
+                .allowsHitTesting(false)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { drag in
+                    guard drag.startLocation.x > height else { return }
+                    dragging = min(max(drag.location.x / geometry.size.width, 0), 1)
+                }
+                .onEnded { drag in
+                    // Toque no alto-falante tira/volta o som; o resto da barra é o volume.
+                    if drag.startLocation.x <= height, abs(drag.translation.width) < 4 { return store.tvKey(device, .mute) }
+                    guard let dragging else { return }
+                    store.tvSetVolume(device, to: Int((dragging * maximum).rounded()))
+                    let sent = dragging
+                    // Um toque novo nesse meio tempo tem o próprio valor; não apaga.
+                    Task { try? await Task.sleep(for: .seconds(2)); if self.dragging == sent { self.dragging = nil } }
+                })
         }
-        .frame(height: 6)
-        .overlay(alignment: .center) {
-            Text(muted ? "mudo" : "\(Int(level))")
-                .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .offset(y: -11)
-        }
+        .frame(height: height)
         .animation(.easeOut(duration: 0.2), value: level)
+        .accessibilityElement()
+        .accessibilityLabel("Volume")
+        .accessibilityValue(muted ? "sem som" : "\(Int(level))")
+        .accessibilityAdjustableAction { direction in store.tvKey(device, direction == .increment ? .volumeUp : .volumeDown) }
     }
 }
 
-struct RoundKey: View {
-    let symbol: String
-    var size: CGFloat = 30
-    var tint: Color = .primary
-    let action: () -> Void
+/// Ícone quadrado do app; sem logo, o nome sobre a cor do app.
+struct AppLogo: View {
+    let app: TVApps.App
+    var corner: CGFloat = 12
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.4, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: size, height: size)
-                .background(Circle().fill(Color.primary.opacity(0.08)))
-                .contentShape(Circle())
+        let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
+        Group {
+            if let logo = app.logo {
+                Image(nsImage: logo).resizable().interpolation(.high).background(.white)
+            } else {
+                Text(app.name)
+                    .font(Theme.font(10.5, .bold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.7)
+                    .padding(4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(app.color)
+            }
         }
-        .buttonStyle(PressStyle())
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
     }
 }
 
-/// Controle completo: direcional, voltar, início, volume e apps. As setas e o Enter do teclado também funcionam.
+/// Controle completo: apps no topo, touchpad ou setas, teclas, volume e busca. As setas, Enter e
+/// Delete do teclado também comandam a TV.
 struct TVRemoteView: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
@@ -205,21 +303,32 @@ struct TVRemoteView: View {
     @Local private var apps = TVApps.load()
     @Local private var text = ""
     @FocusState private var typing: Bool
+    @Local private var usesPad = UserDefaults.standard.object(forKey: "tvTouchpad") as? Bool ?? true
 
     private var package: String { device.status["app"]?.string ?? "" }
     private var appName: String { TVApps.name(of: package) ?? "app" }
     private var canSearch: Bool { TVApps.searchLink(package: package, query: "") != nil || package == "com.globo.globotv" }
+    private var light: Color { device.tvLight(apps) }
+    private var current: TVApps.App? { TVApps.app(package: package, in: apps) }
 
     /// Com texto, busca direto; vazio, só abre a busca do app.
     private func search() {
         store.tvSearch(device, text)
         text = ""
+        releaseKeyboard()
     }
 
     private func sendText() {
         guard !text.isEmpty else { return }
         store.tvType(device, text)
         text = ""
+        releaseKeyboard()
+    }
+
+    /// Tira o foco da caixa de busca: senão as setas do Mac continuavam presas nela.
+    private func releaseKeyboard() {
+        typing = false
+        focused = true
     }
 
     private func update(_ list: [TVApps.App]) {
@@ -228,115 +337,49 @@ struct TVRemoteView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            Panel(title: "Controle") {
-                VStack(spacing: 14) {
+        VStack(spacing: 14) {
+            appGrid
+
+            VStack(spacing: 10) {
+                Picker("Direcional", selection: Binding(get: { usesPad }, set: { pad in
+                    usesPad = pad
+                    UserDefaults.standard.set(pad, forKey: "tvTouchpad")
+                })) {
+                    Text("Touchpad").tag(true)
+                    Text("Setas").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if usesPad {
+                    Touchpad(tint: light) { store.tvKey(device, $0) }
+                } else {
                     dpad
-                    HStack(spacing: 14) {
-                        labeled("Voltar", "arrow.uturn.backward") { store.tvKey(device, .back) }
-                        labeled("Início", "house.fill") { store.tvKey(device, .home) }
-                        labeled("Play", "playpause.fill") { store.tvKey(device, .playPause) }
-                        labeled("Entrada", "rectangle.connected.to.line.below") { store.tvKey(device, .input) }
-                        labeled("Ajustes", "gearshape.fill") { store.tvKey(device, .settings) }
-                    }
-                    HStack(spacing: 8) {
-                        RoundKey(symbol: device.status["muted"]?.bool == true ? "speaker.slash.fill" : "speaker.fill") {
-                            store.tvKey(device, .mute)
-                        }
-                        RoundKey(symbol: "minus") { store.tvKey(device, .volumeDown) }
-                        VolumeBar(device: device).padding(.top, 8)
-                        RoundKey(symbol: "plus") { store.tvKey(device, .volumeUp) }
-                    }
                 }
-                .frame(maxWidth: .infinity)
-            }
 
-            Panel(title: "Buscar e digitar") {
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(typing ? Theme.accent(.tv) : .secondary)
-                        TextField("O que você quer ver?", text: $text)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .focused($typing)
-                            .onSubmit { canSearch ? search() : sendText() }
-                        if !text.isEmpty {
-                            Button { text = "" } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Limpar")
-                        }
-                        Divider().frame(height: 16)
-                        Button { store.tvDelete(device) } label: {
-                            Image(systemName: "delete.left").font(.system(size: 12, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help("Apagar uma letra na TV")
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
-                    .background(Capsule().fill(Color.primary.opacity(0.07)))
-                    .overlay(Capsule().strokeBorder(typing ? Theme.accent(.tv).opacity(0.7) : .clear, lineWidth: 1.5))
-                    .animation(.easeOut(duration: 0.15), value: typing)
-
-                    HStack(spacing: 8) {
-                        PillButton(title: canSearch ? "Buscar no \(appName)" : "Buscar", symbol: "magnifyingglass",
-                                   filled: true, enabled: canSearch, action: search)
-                        PillButton(title: "Enviar texto", symbol: "paperplane.fill", filled: false,
-                                   enabled: !text.isEmpty, action: sendText)
-                    }
-                    if !canSearch {
-                        Text("\(appName == "app" ? "Esse app" : appName) não aceita busca direta: abra a busca na TV e use Enviar texto.")
-                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                HStack(spacing: 8) {
+                    key("arrow.uturn.backward", "Voltar", .back)
+                    key("house.fill", "Início", .home)
+                    key("playpause.fill", "Tocar ou pausar", .playPause)
+                    key("rectangle.connected.to.line.below", "Entrada", .input)
+                    key("gearshape.fill", "Ajustes da TV", .settings)
                 }
             }
+            .padding(10)
+            .card(Theme.matte.opacity(0.92), corner: 26)
 
-            Panel(title: "Apps") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(apps) { app in
-                        Button { store.tvLaunch(device, app.link) } label: {
-                            Text(app.name)
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                                .frame(maxWidth: .infinity, minHeight: 34)
-                                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(app.color))
-                        }
-                        .buttonStyle(PressStyle())
-                        .contextMenu {
-                            Button("Remover", role: .destructive) { update(apps.filter { $0 != app }) }
-                        }
-                    }
-                }
-                HStack {
-                    if let current = TVApps.fromCurrent(device.status["app"]?.string, existing: apps) {
-                        Button { update(apps + [current]) } label: {
-                            Label("Adicionar \(current.name), aberto na TV", systemImage: "plus.circle.fill")
-                        }
-                    } else {
-                        Text("Para adicionar, abra o app na TV. Botão direito remove.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if apps != TVApps.defaults {
-                        Button("Restaurar") { update(TVApps.defaults) }
-                    }
-                }
-                .font(.system(size: 11))
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.accent(.tv))
-            }
+            VolumeSlider(device: device, tint: light, height: 44)
 
-            Text("Dica: com o controle aberto, as setas, Enter e Delete do teclado comandam a TV.")
-                .font(.system(size: 10.5)).foregroundStyle(.secondary)
+            searchBar
+
+            Text("Com o controle aberto, as setas, Enter e Delete do teclado comandam a TV.")
+                .font(Theme.font(10.5)).foregroundStyle(.secondary)
         }
+        .background(alignment: .top) {
+            Ellipse().fill(light).frame(width: 340, height: 220).blur(radius: 70).opacity(0.45).offset(y: -90)
+                .allowsHitTesting(false)
+        }
+        .animation(.easeOut(duration: 0.35), value: package)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -357,20 +400,110 @@ struct TVRemoteView: View {
         }
     }
 
+    private var appGrid: some View {
+        VStack(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                ForEach(apps) { app in
+                    let open = app.package == current?.package
+                    Button { store.tvLaunch(device, app.link) } label: {
+                        AppLogo(app: app, corner: 18)
+                            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .strokeBorder(open ? app.color : .clear, lineWidth: 2).padding(-4))
+                            .shadow(color: open ? app.color.opacity(0.5) : .clear, radius: 12, y: 4)
+                            .scaleEffect(open ? 1.04 : 1)
+                    }
+                    .buttonStyle(PressStyle())
+                    .help(app.name)
+                    .accessibilityLabel("Abrir \(app.name)")
+                    .contextMenu {
+                        Button("Remover", role: .destructive) { update(apps.filter { $0 != app }) }
+                    }
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+            HStack {
+                if let add = TVApps.fromCurrent(device.status["app"]?.string, existing: apps) {
+                    Button { update(apps + [add]) } label: {
+                        Label { Text("Adicionar \(add.name), aberto na TV") } icon: { Icon("plus.circle.fill", size: 12) }
+                    }
+                    .foregroundStyle(light)
+                } else {
+                    Text("Para adicionar, abra o app na TV. Botão direito remove.").foregroundStyle(.secondary)
+                }
+                Spacer()
+                if apps != TVApps.defaults {
+                    Button("Restaurar") { update(TVApps.defaults) }.foregroundStyle(.secondary)
+                }
+            }
+            .font(Theme.font(11))
+            .buttonStyle(.plain)
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private var searchBar: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Group {
+                    if let current {
+                        AppLogo(app: current, corner: 8)
+                    } else {
+                        Icon("magnifyingglass", size: 12).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 28, height: 28)
+                TextField(canSearch ? "Buscar no \(appName)" : "Digitar na TV", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(Theme.font(13))
+                    .focused($typing)
+                    .onSubmit { canSearch ? search() : sendText() }
+                if !text.isEmpty {
+                    Button { text = "" } label: { Icon("xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                        .help("Limpar")
+                }
+                Button { store.tvDelete(device) } label: {
+                    Icon("delete.left", size: 12).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Apagar uma letra na TV")
+                Button(canSearch ? "Buscar" : "Enviar") { canSearch ? search() : sendText() }
+                    .buttonStyle(FilledStyle(tint: light))
+                    .disabled(!canSearch && text.isEmpty)
+            }
+            .padding(.leading, 8)
+            .padding(.trailing, 6)
+            .frame(height: 44)
+            .card(Theme.well, edge: typing ? light.opacity(0.7) : nil, corner: 15)
+            .animation(.easeOut(duration: 0.15), value: typing)
+            if canSearch, !text.isEmpty {
+                Button("Só digitar o texto na TV", action: sendText)
+                    .buttonStyle(.plain).font(Theme.font(11)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            } else if !canSearch {
+                Text("\(appName == "app" ? "Esse app" : appName) não aceita busca direta: abra a busca na TV e envie o texto.")
+                    .font(Theme.font(10.5)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     private var dpad: some View {
         ZStack {
-            Circle().fill(Color.primary.opacity(0.06)).frame(width: 150, height: 150)
+            Circle().fill(Color(light: 0xE6E6EB, dark: 0x2A2A2F)).frame(width: 236, height: 236)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
             VStack(spacing: 0) {
                 arrow("chevron.up", .up)
                 HStack(spacing: 0) {
                     arrow("chevron.left", .left)
                     Button { store.tvKey(device, .center) } label: {
                         Text("OK")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Circle().fill(Theme.accent(.tv)))
-                            .shadow(color: Theme.accent(.tv).opacity(0.45), radius: 8, y: 2)
+                            .font(Theme.number(15, .bold))
+                            .foregroundStyle(light.ink)
+                            .frame(width: 80, height: 80)
+                            .background(Circle().fill(light))
+                            .shadow(color: light.opacity(0.45), radius: 12)
                     }
                     .buttonStyle(PressStyle())
                     arrow("chevron.right", .right)
@@ -378,23 +511,110 @@ struct TVRemoteView: View {
                 arrow("chevron.down", .down)
             }
         }
+        .frame(height: 250)
     }
 
     private func arrow(_ symbol: String, _ key: ATVRemote.Key) -> some View {
         Button { store.tvKey(device, key) } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold))
-                .frame(width: 44, height: 44)
+            Icon(symbol, size: 17)
+                .frame(width: 64, height: 64)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
     }
 
-    private func labeled(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
-        VStack(spacing: 4) {
-            RoundKey(symbol: symbol, size: 36, action: action)
-            Text(title).font(.system(size: 10)).foregroundStyle(.secondary)
+    private func key(_ symbol: String, _ label: String, _ key: ATVRemote.Key) -> some View {
+        Button { store.tvKey(device, key) } label: {
+            Icon(symbol, size: 14)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Theme.well))
+                .contentShape(Rectangle())
         }
+        .buttonStyle(PressStyle())
+        .help(label)
+        .accessibilityLabel(label)
+    }
+}
+
+/// Área de arrastar como o touchpad do Siri Remote: cada 36 pt num eixo é uma seta; um toque é OK.
+struct Touchpad: View {
+    let tint: Color
+    let send: (ATVRemote.Key) -> Void
+    @Local private var anchor: CGSize = .zero
+    @Local private var finger: CGPoint?
+    /// O arrasto já mandou alguma seta: soltar não vale OK, mesmo que o dedo volte ao ponto de partida.
+    @Local private var moved = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(light: 0xE6E6EB, dark: 0x2A2A2F))
+            Canvas { canvas, size in
+                // Textura de pontinhos, como a de um trackpad.
+                for x in stride(from: 7.0, to: size.width, by: 14) {
+                    for y in stride(from: 7.0, to: size.height, by: 14) {
+                        canvas.fill(Path(ellipseIn: CGRect(x: x - 0.8, y: y - 0.8, width: 1.6, height: 1.6)), with: .color(.primary.opacity(0.12)))
+                    }
+                }
+            }
+            if let finger {
+                Circle().fill(tint).frame(width: 46, height: 46).blur(radius: 3).opacity(0.6)
+                    .shadow(color: tint, radius: 18)
+                    .position(finger)
+            } else {
+                VStack(spacing: 8) {
+                    Icon("hand.draw", size: 22)
+                    Text("Arraste para mover, clique para OK").font(Theme.font(11.5))
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(height: 210)
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+        .contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { drag in
+                finger = drag.location
+                let dx = drag.translation.width - anchor.width, dy = drag.translation.height - anchor.height
+                let step: CGFloat = 36
+                if abs(dx) >= step, abs(dx) > abs(dy) {
+                    moved = true
+                    send(dx > 0 ? .right : .left)
+                    anchor.width += dx > 0 ? step : -step
+                    anchor.height = drag.translation.height
+                } else if abs(dy) >= step {
+                    moved = true
+                    send(dy > 0 ? .down : .up)
+                    anchor.height += dy > 0 ? step : -step
+                    anchor.width = drag.translation.width
+                }
+            }
+            .onEnded { drag in
+                if !moved, abs(drag.translation.width) < 4, abs(drag.translation.height) < 4 { send(.center) }
+                moved = false
+                anchor = .zero
+                withAnimation(.easeOut(duration: 0.25)) { finger = nil }
+            })
+        .accessibilityElement()
+        .accessibilityLabel("Touchpad")
+        .accessibilityHint("Use as setas do teclado para mover e Enter para OK")
+    }
+}
+
+/// Botão cheio na cor do aparelho.
+struct FilledStyle: ButtonStyle {
+    let tint: Color
+    @Environment(\.isEnabled) private var enabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.font(12.5, .bold))
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .foregroundStyle(tint.ink)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint))
+            .opacity(enabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }
 
@@ -408,10 +628,10 @@ struct TVSettingsPanel: View {
         Panel(title: "TV · Google TV / Android TV") {
             ForEach(store.credentials.androidTVs ?? [], id: \.host) { tv in
                 HStack {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Icon("checkmark.circle.fill").foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(tv.name).font(.system(size: 12, weight: .medium))
-                        Text(tv.host).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        Text(tv.name).font(Theme.font(12, .medium))
+                        Text(tv.host).font(Theme.font(10.5)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Remover") { store.removeTV(host: tv.host) }.controlSize(.small)
@@ -420,9 +640,9 @@ struct TVSettingsPanel: View {
 
             if let pairing = store.tvPairing {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Pareando com \(pairing.name)").font(.system(size: 12, weight: .medium))
+                    Text("Pareando com \(pairing.name)").font(Theme.font(12, .medium))
                     if let message = pairing.message {
-                        Text(message).font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(message).font(Theme.font(11)).foregroundStyle(.secondary)
                     }
                     if pairing.waitingCode {
                         HStack {
@@ -442,18 +662,18 @@ struct TVSettingsPanel: View {
                 if scan.searching {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
-                        Text("Procurando TVs na rede…").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("Procurando TVs na rede…").font(Theme.font(11)).foregroundStyle(.secondary)
                     }
                 } else if scan.found.isEmpty {
                     Text("Nenhuma TV nova encontrada. Ela precisa estar ligada e no mesmo Wi‑Fi.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(Theme.font(11)).foregroundStyle(.secondary)
                     Button("Procurar de novo") { store.scanTVs() }.controlSize(.small)
                 } else {
                     ForEach(scan.found) { tv in
                         HStack {
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(tv.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                                Text(tv.host).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                                Text(tv.name).font(Theme.font(12, .medium)).lineLimit(1)
+                                Text(tv.host).font(Theme.font(10.5)).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Button("Parear") {
@@ -470,34 +690,10 @@ struct TVSettingsPanel: View {
                 }
             } else {
                 Text("Liga, desliga, volume, direcional e apps, direto pela rede de casa. Na primeira vez a TV mostra um código.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Procurar TV") { store.scanTVs() }.controlSize(.small)
             }
         }
-    }
-}
-
-/// Botão em pílula: cheio para a ação principal, discreto para a secundária.
-struct PillButton: View {
-    let title: String
-    let symbol: String
-    var filled = true
-    var enabled = true
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, minHeight: 32)
-                .foregroundStyle(filled ? .white : .primary)
-                .background(Capsule().fill(filled ? Theme.accent(.tv) : Color.primary.opacity(0.08)))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(PressStyle())
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.4)
     }
 }

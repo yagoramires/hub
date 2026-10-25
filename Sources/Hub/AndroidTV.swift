@@ -70,7 +70,8 @@ struct PBMessage {
             case 1:
                 index += 8
             case 2:
-                guard let length = PBMessage.readVarint(bytes, &index), index + Int(length) <= bytes.count else { return nil }
+                // Compara antes de converter: um tamanho maior que Int travaria o app no Int(length).
+                guard let length = PBMessage.readVarint(bytes, &index), length <= UInt64(bytes.count - index) else { return nil }
                 fields[field] = Data(bytes[index..<index + Int(length)])
                 index += Int(length)
             case 5:
@@ -240,6 +241,8 @@ final class ATVConnection {
                 case .failed(let error), .waiting(let error):
                     if !resumed { resumed = true; continuation.resume(throwing: error) }
                     self?.close(reason: "\(error)")
+                    // Esperando a rede, ela seguiria tentando sozinha enquanto o Hub já abriu outra.
+                    self?.cancel()
                 case .cancelled:
                     if !resumed { resumed = true; continuation.resume(throwing: ATVError.message("conexão cancelada")) }
                     self?.close(reason: nil)
@@ -279,7 +282,10 @@ final class ATVConnection {
         while true {
             let bytes = [UInt8](buffer)
             var index = 0
-            guard let length = PBMessage.readVarint(bytes, &index), bytes.count >= index + Int(length) else { return }
+            guard let length = PBMessage.readVarint(bytes, &index) else { return }
+            // Tamanho maior que tudo que pode caber na conexão: fluxo corrompido, descarta em vez de travar.
+            guard length <= 1 << 20 else { buffer = Data(); return }
+            guard bytes.count >= index + Int(length) else { return }
             let body = Data(bytes[index..<index + Int(length)])
             buffer = Data(bytes[(index + Int(length))...])
             if let message = PBMessage(body) { onMessage?(message) }
@@ -426,8 +432,8 @@ private extension Data {
 final class ATVRemote {
     enum Key: Int {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
-        case volumeUp = 24, volumeDown = 25, power = 26, menu = 82, playPause = 85, mute = 164
-        case settings = 176, input = 178, delete = 67, enter = 66
+        case volumeUp = 24, volumeDown = 25, power = 26, playPause = 85, mute = 164
+        case settings = 176, input = 178, delete = 67
     }
 
     let host: String
@@ -445,8 +451,9 @@ final class ATVRemote {
     private var stopped = false
     /// PING | KEY | IME | POWER | VOLUME | APP_LINK. Sem IME a TV não conta qual app está aberto.
     private var features = 615
-    /// Comandos dados enquanto a conexão estava caída; saem assim que ela volta.
-    private var queued: [PB] = []
+    /// Comandos dados enquanto a conexão estava caída; saem quando ela volta, se tiverem até 5 s.
+    /// Mais velhos são descartados: dois toques no power viravam liga-e-desliga minutos depois.
+    private var queued: [(message: PB, at: Date)] = []
 
     init(host: String) {
         self.host = host
@@ -478,23 +485,21 @@ final class ATVRemote {
 
     private func deliver(_ message: PB) {
         guard let connection, connected else {
-            queued.append(message)
+            queued.append((message, Date()))
             return start()
         }
         connection.send(message)
     }
 
     private func connect() async {
-        do {
-            let identity = try ATVIdentity.load()
-            let connection = ATVConnection(host: host, port: 6466, identity: identity.identity)
-            self.connection = connection
-            connection.onMessage = { [weak self] message in MainActor.assumeIsolated { self?.handle(message) } }
-            connection.onClose = { [weak self] reason in MainActor.assumeIsolated { self?.closed(reason) } }
-            try await connection.start()
-        } catch {
-            closed("\(error)")
-        }
+        let identity: SecIdentity
+        do { identity = try ATVIdentity.load().identity } catch { return closed("\(error)") }
+        let connection = ATVConnection(host: host, port: 6466, identity: identity)
+        self.connection = connection
+        connection.onMessage = { [weak self] message in MainActor.assumeIsolated { self?.handle(message) } }
+        connection.onClose = { [weak self] reason in MainActor.assumeIsolated { self?.closed(reason) } }
+        // Toda falha da conexão chega pelo onClose; tratar o erro aqui também contava cada falha duas vezes.
+        try? await connection.start()
     }
 
     private func closed(_ reason: String?) {
@@ -539,7 +544,8 @@ final class ATVRemote {
             needsPairing = false
             failures = 0
             debugLog("androidtv: conectado a \(host)")
-            queued.forEach { connection.send($0) }
+            let fresh = Date().addingTimeInterval(-5)
+            queued.filter { $0.at > fresh }.forEach { connection.send($0.message) }
             queued = []
             onChange?()
         } else if let ping = message.message(8) {
@@ -672,7 +678,7 @@ enum ADB {
         }
         // Apps de TV declaram LEANBACK_LAUNCHER; alguns só têm o LAUNCHER comum.
         for category in ["android.intent.category.LEANBACK_LAUNCHER", "android.intent.category.LAUNCHER"] {
-            let output = await run(["-s", target, "shell", "monkey", "-p", package, "-c", category, "1"])
+            let output = await run(["-s", target, "shell", "monkey", "-p", package, "-c", category, "1"]) ?? ""
             if output.contains("Events injected") { return true }
             debugLog("adb: \(package) não abriu (\(output.split(separator: "\n").last ?? ""))")
             if output.contains("unauthorized") || output.contains("failed to connect") || output.contains("not found") { break }
@@ -684,9 +690,16 @@ enum ADB {
     /// sozinho pelo mDNS depois do pareamento (adb pair) e cuja porta muda a cada vez.
     private static func device(host: String) async -> String? {
         _ = await run(["connect", "\(host):5555"])
-        let lines = await run(["devices"]).split(separator: "\n").map { $0.split(separator: "\t") }
+        let lines = (await run(["devices"]) ?? "").split(separator: "\n").map { $0.split(separator: "\t") }
         let ready = lines.filter { $0.count == 2 && $0[1] == "device" }.map { String($0[0]) }
-        return ready.first { $0.hasPrefix(host) } ?? ready.first { $0.contains("_adb-tls-connect") }
+        // "192.168.0.2:" para não pegar 192.168.0.25.
+        if let direct = ready.first(where: { $0.hasPrefix(host + ":") }) { return direct }
+        // Depuração por Wi‑Fi: o nome do mDNS não traz o IP; acha o da TV na lista do mDNS (senão
+        // qualquer celular pareado no adb recebia o texto).
+        let services = (await run(["mdns", "services"]) ?? "").split(separator: "\n")
+        guard let line = services.first(where: { $0.contains("_adb-tls-connect") && $0.contains(host + ":") }),
+              let name = line.split(whereSeparator: { $0 == "\t" || $0 == " " }).first else { return nil }
+        return ready.first { $0.hasPrefix(String(name)) }
     }
 
     /// Digita no campo selecionado na TV. O `input text` do Android só aceita ASCII, então tira
@@ -695,7 +708,8 @@ enum ADB {
         guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
         let safe = inputText(text)
         guard !safe.isEmpty else { return false }
-        let output = await run(["-s", target, "shell", "input text '\(safe)'"])
+        // Sem saída é sucesso; nil (o adb nem abriu) é falha.
+        guard let output = await run(["-s", target, "shell", "input text '\(safe)'"]) else { return false }
         if !output.isEmpty { debugLog("adb: digitar falhou (\(output.prefix(120)))") }
         return output.isEmpty
     }
@@ -711,14 +725,14 @@ enum ADB {
     /// Tecla pelo ADB: no teclado da busca a TV ignora o apagar que chega pelo protocolo do controle.
     static func key(_ code: Int, host: String) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
-        return await run(["-s", target, "shell", "input keyevent \(code)"]).isEmpty
+        return await run(["-s", target, "shell", "input keyevent \(code)"])?.isEmpty == true
     }
 
     /// Espera o teclado da TV aparecer (até 4 s) e digita; mais rápido que uma espera fixa.
     static func typeWhenReady(_ text: String, host: String) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
         for _ in 0..<16 {
-            if await run(["-s", target, "shell", "dumpsys input_method | grep -c mInputShown=true"]).hasPrefix("1") { break }
+            if await run(["-s", target, "shell", "dumpsys input_method | grep -c mInputShown=true"])?.hasPrefix("1") == true { break }
             try? await Task.sleep(for: .milliseconds(250))
         }
         return await type(text, host: host)
@@ -728,15 +742,12 @@ enum ADB {
     static func search(_ query: String, package: String, host: String) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path), let target = await device(host: host) else { return false }
         let quoted = "'" + query.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        let output = await run(["-s", target, "shell", "am start -a android.intent.action.SEARCH -p \(package) --es query \(quoted)"])
+        let output = await run(["-s", target, "shell", "am start -a android.intent.action.SEARCH -p \(package) --es query \(quoted)"]) ?? ""
         return output.contains("Starting") && !output.contains("Error")
     }
 
-    static func pair(host: String, port: String, code: String) async -> String {
-        await run(["pair", "\(host):\(port)", code])
-    }
-
-    private static func run(_ arguments: [String]) async -> String {
+    /// Saída do adb (stdout e stderr juntos), ou nil se o processo nem abriu.
+    private static func run(_ arguments: [String]) async -> String? {
         await Task.detached {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: path)
@@ -744,7 +755,7 @@ enum ADB {
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
-            guard (try? process.run()) != nil else { return "" }
+            guard (try? process.run()) != nil else { return nil }
             // A TV desligada ou sem depuração não pode travar o clique.
             let timer = DispatchWorkItem { process.terminate() }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: timer)

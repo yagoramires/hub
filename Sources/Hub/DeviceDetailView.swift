@@ -8,6 +8,72 @@ struct DeviceDetailView: View {
     let back: () -> Void
 
     private var accent: Color { Theme.accent(device.kind) }
+    /// Cor que o aparelho acende: a da luz, a do app aberto na TV ou a do tipo.
+    private var light: Color {
+        switch device.kind {
+        case .light: Theme.lightFill(device).glow
+        case .tv: device.tvLight(TVApps.load())
+        default: accent
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 10)
+                .background(alignment: .top) {
+                    if device.kind == .light, device.isOn {
+                        Ellipse().fill(light).frame(width: 420, height: 360).blur(radius: 90)
+                            .opacity(0.25 + 0.3 * (device.brightness ?? 1)).offset(y: 40).allowsHitTesting(false)
+                    }
+                }
+            Scroller {
+                DeviceOptions(device: device)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 14)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            IconButton(symbol: "chevron.left", help: "Voltar", action: back)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name).font(Theme.font(14, .semibold)).lineLimit(1)
+                Text(device.kind == .tv ? device.tvStatus : subtitle)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if device.canToggle, device.source != .smartThings {
+                GlowPower(on: device.isOn, color: light, ink: light.ink) { store.toggle(device) }
+            }
+        }
+    }
+
+    private var subtitle: String {
+        guard device.online else { return "Sem conexão" }
+        if device.kind == .light, device.isOn {
+            let level = device.brightness.map { " em \(Int(($0 * 100).rounded()))%" } ?? ""
+            return "Acesa\(level)"
+        }
+        return device.room ?? source
+    }
+
+    private var source: String {
+        switch device.source {
+        case .androidTV: "Google TV"
+        case .smartThings: "SmartThings"
+        case .tuya: "Smart Life"
+        }
+    }
+
+}
+
+/// Todas as opções de um aparelho: usadas na tela de detalhes e no menu que abre ao clicar no botão.
+struct DeviceOptions: View {
+    @EnvironmentObject private var store: HubStore
+    let device: HubDevice
+
+    private var accent: Color { Theme.accent(device.kind) }
 
     /// Pontos que já têm controle próprio ou que não fazem sentido mostrar.
     private var handled: Set<String> {
@@ -22,56 +88,21 @@ struct DeviceDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 10)
-            Scroller {
-                VStack(spacing: 10) {
-                    if !device.online {
-                        ErrorBanner(text: "Aparelho offline: os comandos só chegam quando ele voltar.") {}
-                    }
-                    if device.source == .smartThings, device.kind == .airConditioner {
-                        ACCard(device: device)
-                    }
-                    if device.kind == .tv { TVRemoteView(device: device) }
-                    if device.kind == .light { LightControls(device: device) }
-                    if device.kind == .feeder { FeederControls(device: device) }
-                    if device.kind == .feeder, device.functions["meal_plan"] != nil { MealPlanPanel(device: device) }
-                    if !device.extraSwitches.isEmpty { outlets }
-                    generic
-                    readings
+            VStack(spacing: 10) {
+                if !device.online {
+                    ErrorBanner(text: "Aparelho offline: os comandos só chegam quando ele voltar.") {}
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 14)
+                if device.source == .smartThings, device.kind == .airConditioner {
+                    ACCard(device: device, showsName: false)
+                }
+                if device.kind == .tv { TVRemoteView(device: device) }
+                if device.kind == .light, device.brightnessSpec != nil || device.colourCode != nil { LightControls(device: device) }
+                if device.kind == .feeder { FeederControls(device: device) }
+                if device.kind == .feeder, device.functions["meal_plan"] != nil { MealPlanPanel(device: device) }
+                if !device.extraSwitches.isEmpty { outlets }
+                generic
+                readings
             }
-        }
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            IconButton(symbol: "chevron.left", help: "Voltar", action: back)
-            Image(systemName: Theme.symbol(device))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(device.isOn ? .white : accent)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(device.isOn ? accent : accent.opacity(0.15)))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(device.name).font(.system(size: 14, weight: .semibold, design: .rounded)).lineLimit(1)
-                Text([device.room, device.online ? nil : "Offline"].compactMap { $0 }.joined(separator: " · ").ifEmpty(source))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if device.canToggle, device.source != .smartThings {
-                PowerButton(on: device.isOn, tint: accent) { store.toggle(device) }
-            }
-        }
-    }
-
-    private var source: String {
-        switch device.source {
-        case .androidTV: "Google TV"
-        case .smartThings: "SmartThings"
-        case .tuya: "Smart Life"
-        }
     }
 
     private var outlets: some View {
@@ -98,7 +129,7 @@ struct DeviceDetailView: View {
                         }
                     } else if spec.isEnum {
                         HStack {
-                            Text(title).font(.system(size: 12))
+                            Text(title).font(Theme.font(12))
                             Spacer()
                             Menu(Labels.value(device.status[spec.code]?.string ?? "—")) {
                                 ForEach(spec.range, id: \.self) { option in
@@ -131,10 +162,10 @@ struct DeviceDetailView: View {
                 ForEach(codes, id: \.self) { code in
                     if let reading = device.reading(code) {
                         HStack {
-                            Text(Labels.code(code, spec: device.statusSpecs[code])).font(.system(size: 12))
+                            Text(Labels.code(code, spec: device.statusSpecs[code])).font(Theme.font(12))
                             Spacer()
                             Text("\(reading.value.short) \(reading.unit)")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(Theme.font(12, .medium))
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         }
@@ -148,68 +179,188 @@ struct DeviceDetailView: View {
 
 // MARK: Luz
 
+/// Duas barras altas: o brilho (o preenchimento é a própria luz) e o tom da branca ou a saturação
+/// da cor. Embaixo, a luz branca e as cores.
 struct LightControls: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
 
-    private var brightness: DPSpec? { device.functions["bright_value_v2"] ?? device.functions["bright_value"] }
     private var temperature: DPSpec? { device.functions["temp_value_v2"] ?? device.functions["temp_value"] }
-    private var colour: String? { ["colour_data_v2", "colour_data"].first { device.functions[$0] != nil } }
-    private var mode: String? { device.status["work_mode"]?.string }
+    private var colourMode: Bool { device.status["work_mode"]?.string == "colour" }
+    private var hasColour: Bool { device.colourCode != nil && device.functions["work_mode"]?.range.contains("colour") == true }
 
-    private static let hues: [Double] = [0, 25, 50, 120, 175, 210, 265, 310]
+    private static let hues: [(name: String, hue: Double)] = [
+        ("Vermelho", 0), ("Laranja", 25), ("Amarelo", 50), ("Verde", 120), ("Ciano", 180), ("Azul", 220), ("Roxo", 270), ("Rosa", 320),
+    ]
 
     var body: some View {
-        Panel(title: "Luz") {
-            if device.functions["work_mode"]?.range.contains("colour") == true {
-                HStack(spacing: 6) {
-                    Chip(title: "Branca", symbol: "sun.max.fill", selected: mode == "white", tint: Theme.accent(.light)) {
-                        store.setTuya(device, "work_mode", "white")
+        let fill = Theme.lightFill(device)
+        VStack(spacing: 18) {
+            HStack(spacing: 14) {
+                if device.brightnessSpec != nil || colourMode {
+                    VerticalBar(label: "Brilho", value: device.isOn ? (device.brightness ?? 1) : 0, style: .light(fill.low, fill.high)) {
+                        setBrightness($0)
                     }
-                    Chip(title: "Colorida", symbol: "paintpalette.fill", selected: mode == "colour", tint: Theme.accent(.light)) {
-                        store.setTuya(device, "work_mode", "colour")
+                    .frame(width: 150)
+                }
+                if colourMode, let hsv = device.colour {
+                    VerticalBar(label: "Saturação", value: hsv.s,
+                                style: .knob([Color(hue: hsv.h / 360, saturation: 1, brightness: 1), .white])) {
+                        setColour(hue: hsv.h, saturation: $0)
                     }
-                    Spacer()
+                    .frame(width: 72)
+                } else if let temperature {
+                    let raw = device.status[temperature.code]?.number ?? temperature.min
+                    VerticalBar(label: "Tom", value: (raw - temperature.min) / max(temperature.max - temperature.min, 1),
+                                style: .knob([Color(red: 0.84, green: 0.91, blue: 1), Color(red: 1, green: 0.95, blue: 0.88), Color(red: 1, green: 0.71, blue: 0.36)]),
+                                top: "fria", bottom: "quente") {
+                        store.setTuya(device, temperature.code, Int((temperature.min + $0 * (temperature.max - temperature.min)).rounded()))
+                    }
+                    .frame(width: 72)
                 }
             }
-            if let brightness {
-                SpecSlider(title: "Brilho", spec: brightness, raw: device.status[brightness.code]?.number ?? brightness.max,
-                           tint: Theme.accent(.light), percent: true, symbol: "sun.min.fill") {
-                    var commands: [(code: String, value: Any)] = [(brightness.code, Int($0))]
-                    if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
-                    store.setTuya(device, commands)
-                }
-            }
-            if let temperature, mode != "colour" {
-                SpecSlider(title: "Tom", spec: temperature, raw: device.status[temperature.code]?.number ?? temperature.min,
-                           tint: Theme.accent(.light), percent: true, symbol: "thermometer.medium",
-                           track: [Color(red: 1, green: 0.72, blue: 0.4), Color(red: 1, green: 0.95, blue: 0.88), Color(red: 0.75, green: 0.87, blue: 1)]) {
-                    store.setTuya(device, temperature.code, Int($0))
-                }
-            }
-            if let colour {
-                HStack(spacing: 8) {
-                    ForEach(Self.hues, id: \.self) { hue in
-                        Button {
-                            let value = Int(brightness.flatMap { device.status[$0.code]?.number } ?? 1000)
-                            let data = "{\"h\":\(Int(hue)),\"s\":1000,\"v\":\(max(value, 100))}"
-                            var commands: [(code: String, value: Any)] = [("work_mode", "colour"), (colour, data)]
-                            if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
-                            store.setTuya(device, commands)
-                        } label: {
-                            Circle()
-                                .fill(Color(hue: hue / 360, saturation: 0.85, brightness: 1))
-                                .frame(width: 26, height: 26)
-                                .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1))
-                                .shadow(color: Color(hue: hue / 360, saturation: 0.85, brightness: 1).opacity(0.5), radius: 4)
+            .frame(height: 340)
+            .frame(maxWidth: .infinity)
+
+            if hasColour {
+                HStack {
+                    swatch("Branca", fill: AnyShapeStyle(LinearGradient(colors: [Color(red: 1, green: 0.95, blue: 0.88), Color(red: 1, green: 0.71, blue: 0.36)],
+                                                                       startPoint: .topLeading, endPoint: .bottomTrailing)),
+                           ring: Color(red: 1, green: 0.77, blue: 0.4), selected: !colourMode) {
+                        var commands: [(code: String, value: Any)] = [("work_mode", "white")]
+                        if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
+                        store.setTuya(device, commands)
+                    }
+                    ForEach(Self.hues, id: \.hue) { item in
+                        let color = Color(hue: item.hue / 360, saturation: 0.85, brightness: 1)
+                        let selected = colourMode && device.colour.map { abs($0.h - item.hue) < 12 } == true
+                        swatch(item.name, fill: AnyShapeStyle(color), ring: color, selected: selected) {
+                            setColour(hue: item.hue, saturation: 1)
                         }
-                        .buttonStyle(PressStyle())
+                        if item.hue != Self.hues.last?.hue { Spacer(minLength: 0) }
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
             }
+            Text("Arraste as barras. Clicar na luz da tela inicial acende e apaga.")
+                .font(Theme.font(11)).foregroundStyle(.secondary)
         }
+        .padding(.vertical, 6)
+    }
+
+    private func swatch(_ name: String, fill: AnyShapeStyle, ring: Color, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle().fill(fill)
+                .frame(width: 28, height: 28)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.15)))
+                .padding(3)
+                .overlay(Circle().strokeBorder(selected ? ring : .clear, lineWidth: 2))
+                .shadow(color: selected ? ring.opacity(0.6) : .clear, radius: 8)
+        }
+        .buttonStyle(PressStyle())
+        .help(name)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func setBrightness(_ fraction: Double) {
+        guard let power = device.powerCode else { return }
+        if fraction < 0.03 { return store.setTuya(device, power, false) }
+        if colourMode, let hsv = device.colour { return setColour(hue: hsv.h, saturation: hsv.s, value: fraction) }
+        guard let spec = device.brightnessSpec else { return }
+        let raw = ((spec.min + fraction * (spec.max - spec.min)) / spec.step).rounded() * spec.step
+        var commands: [(code: String, value: Any)] = [(spec.code, Int(min(max(raw, spec.min), spec.max)))]
+        if !device.isOn { commands.insert((power, true), at: 0) }
+        store.setTuya(device, commands)
+    }
+
+    private func setColour(hue: Double, saturation: Double, value: Double? = nil) {
+        guard let code = device.colourCode else { return }
+        let top = code == "colour_data_v2" ? 1000.0 : 255.0
+        let value = max(value ?? device.brightness ?? 1, 0.1)
+        let data = "{\"h\":\(Int(hue)),\"s\":\(Int(saturation * top)),\"v\":\(Int(value * top))}"
+        var commands: [(code: String, value: Any)] = [("work_mode", "colour"), (code, data)]
+        if let power = device.powerCode, !device.isOn { commands.insert((power, true), at: 0) }
+        store.setTuya(device, commands)
+    }
+}
+
+/// Barra vertical: arrastar ou clicar escolhe o valor (0 embaixo, 1 em cima). Só manda o comando
+/// ao soltar e segura o valor até a nuvem confirmar.
+struct VerticalBar: View {
+    enum Style {
+        /// Preenchimento de luz com o fio aceso no topo e o número por cima.
+        case light(Color, Color)
+        /// Faixa de cor com um botão branco.
+        case knob([Color])
+    }
+
+    let label: String
+    let value: Double
+    let style: Style
+    var top: String?
+    var bottom: String?
+    let commit: (Double) -> Void
+
+    @Local private var dragging: Double?
+    @Local private var held: Double?
+
+    var body: some View {
+        let fraction = dragging ?? held ?? value
+        GeometryReader { geometry in
+            let height = geometry.size.height
+            ZStack(alignment: .bottom) {
+                switch style {
+                case .light(let low, let high):
+                    Rectangle().fill(Theme.matte)
+                    VStack(spacing: 0) {
+                        Rectangle().fill(.white).frame(height: fraction > 0 ? 3 : 0).shadow(color: high, radius: 9)
+                        LinearGradient(colors: [high, low], startPoint: .top, endPoint: .bottom)
+                    }
+                    .frame(height: height * fraction + (fraction > 0 ? 3 : 0))
+                    VStack(spacing: 2) {
+                        Text("\(Int((fraction * 100).rounded()))")
+                            .font(Theme.number(44, .regular))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text(label.lowercased()).font(Theme.font(12, .semibold))
+                    }
+                    .foregroundStyle(fraction > 0.3 ? Color(red: 0.18, green: 0.11, blue: 0) : Color.primary)
+                    .padding(.bottom, 20)
+                case .knob(let colors):
+                    LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+                    VStack {
+                        if let top { Text(top) }
+                        Spacer()
+                        if let bottom { Text(bottom) }
+                    }
+                    .font(Theme.font(10.5, .bold))
+                    .foregroundStyle(Color.black.opacity(0.6))
+                    .padding(.vertical, 12)
+                    Capsule().fill(.white)
+                        .frame(height: 46)
+                        .padding(.horizontal, 12)
+                        .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
+                        .offset(y: -(height - 58) * fraction - 6)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 36, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { drag in dragging = min(max(1 - drag.location.y / height, 0), 1) }
+                .onEnded { _ in
+                    guard let dragging else { return }
+                    commit(dragging)
+                    held = dragging
+                    self.dragging = nil
+                    Task { try? await Task.sleep(for: .seconds(4)); held = nil }
+                })
+        }
+        .accessibilityElement()
+        .accessibilityLabel(label)
+        .accessibilityValue("\(Int((fraction * 100).rounded()))%")
+        .accessibilityAdjustableAction { direction in commit(min(max(fraction + (direction == .increment ? 0.1 : -0.1), 0), 1)) }
     }
 }
 
@@ -230,9 +381,9 @@ struct FeederControls: View {
                     StepperButton(symbol: "minus") { portions = max(Int(max(spec.min, 1)), portions - 1) }
                     VStack(spacing: 0) {
                         Text("\(portions)")
-                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                            .font(Theme.number(34, .medium))
                             .contentTransition(.numericText(value: Double(portions)))
-                        Text(portions == 1 ? "porção" : "porções").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(portions == 1 ? "porção" : "porções").font(Theme.font(11)).foregroundStyle(.secondary)
                     }
                     .frame(minWidth: 70)
                     StepperButton(symbol: "plus") { portions = min(Int(spec.max > 0 ? spec.max : 12), portions + 1) }
@@ -244,13 +395,13 @@ struct FeederControls: View {
                     store.setTuya(device, "manual_feed", portions)
                 } label: {
                     HStack {
-                        Image(systemName: feeding ? "hourglass" : "pawprint.fill")
+                        Icon(feeding ? "hourglass" : "feeder.bowl")
                         Text(feeding ? "Servindo…" : "Servir agora")
                     }
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent(.feeder)))
+                    .font(Theme.font(13, .bold))
+                    .foregroundStyle(Color(red: 0.23, green: 0.03, blue: 0.07))
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.accent(.feeder)))
                 }
                 .buttonStyle(PressStyle())
                 .disabled(!device.online || feeding)
@@ -261,7 +412,7 @@ struct FeederControls: View {
             }
             if let last = device.status["feed_report"]?.number, last > 0 {
                 Text("Última refeição: \(Int(last)) \(last == 1 ? "porção" : "porções")")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -274,8 +425,7 @@ struct StepperButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
+            Icon(symbol, size: 13)
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(Color.primary.opacity(0.08)))
                 .contentShape(Circle())
@@ -292,14 +442,14 @@ struct Panel<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .bold))
+            Text(title)
+                .font(Theme.font(12, .semibold))
                 .foregroundStyle(.secondary)
             content
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .card(corner: 20)
     }
 }
 
@@ -311,7 +461,7 @@ struct ToggleRow: View {
 
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 12))
+            Text(title).font(Theme.font(12))
             Spacer()
             Toggle(title, isOn: Binding(get: { isOn }, set: set))
                 .labelsHidden()
@@ -330,9 +480,6 @@ struct SpecSlider: View {
     let spec: DPSpec
     let raw: Double
     var tint: Color = .accentColor
-    var percent = false
-    var symbol: String?
-    var track: [Color]?
     let commit: (Double) -> Void
 
     @Local private var dragging: Double?
@@ -344,28 +491,18 @@ struct SpecSlider: View {
         let fraction = dragging ?? held ?? min(max((raw - spec.min) / span, 0), 1)
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                if let track {
-                    Capsule().fill(LinearGradient(colors: track, startPoint: .leading, endPoint: .trailing)).opacity(0.85)
-                    Circle()
-                        .fill(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                        .frame(width: 22, height: 22)
-                        .offset(x: 4 + (geometry.size.width - 30) * fraction)
-                } else {
-                    Capsule().fill(Color.primary.opacity(0.08))
-                    Capsule().fill(tint.opacity(0.85))
-                        .frame(width: max(30, geometry.size.width * fraction))
-                }
+                Capsule().fill(Color.primary.opacity(0.08))
+                Capsule().fill(tint.opacity(0.85))
+                    .frame(width: max(30, geometry.size.width * fraction))
                 HStack(spacing: 6) {
-                    if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .semibold)) }
-                    Text(title).font(.system(size: 12, weight: .medium))
+                    Text(title).font(Theme.font(12, .medium))
                     Spacer()
                     Text(label(spec.min + fraction * span))
-                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .font(Theme.font(11.5, .semibold))
                         .monospacedDigit()
                 }
-                .padding(.horizontal, track == nil ? 11 : 34)
-                .foregroundStyle(track == nil ? Color.primary : Color.black.opacity(0.75))
+                .padding(.horizontal, 11)
+                .foregroundStyle(Color.primary)
                 .allowsHitTesting(false)
             }
             .clipShape(Capsule())
@@ -388,11 +525,7 @@ struct SpecSlider: View {
     }
 
     private func label(_ raw: Double) -> String {
-        if percent { return "\(Int(((raw - spec.min) / span * 100).rounded()))%" }
         return "\(spec.scaled(raw).short)\(spec.unit.isEmpty ? "" : " \(spec.unit)")"
     }
 }
 
-extension String {
-    func ifEmpty(_ fallback: String) -> String { isEmpty ? fallback : self }
-}

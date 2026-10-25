@@ -92,7 +92,9 @@ struct DPSpec: Equatable {
         min = (values["min"] as? NSNumber)?.doubleValue ?? 0
         max = (values["max"] as? NSNumber)?.doubleValue ?? 0
         scale = (values["scale"] as? NSNumber)?.intValue ?? 0
-        step = (values["step"] as? NSNumber)?.doubleValue ?? 1
+        // step 0 dividiria por zero ao arredondar a barra (e Int(NaN) trava o app).
+        let rawStep = (values["step"] as? NSNumber)?.doubleValue ?? 1
+        step = rawStep > 0 ? rawStep : 1
         unit = values["unit"] as? String ?? ""
         range = values["range"] as? [String] ?? []
     }

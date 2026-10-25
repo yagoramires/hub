@@ -18,7 +18,7 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 IconButton(symbol: "chevron.left", help: "Voltar", action: back)
-                Text("Ajustes").font(.system(size: 15, weight: .semibold, design: .rounded))
+                Text("Ajustes").font(Theme.font(15, .semibold))
                 Spacer()
             }
             .padding(12)
@@ -60,11 +60,11 @@ struct SettingsView: View {
             ForEach(store.credentials.tuya, id: \.uid) { account in
                 let devices = store.devices.filter { $0.source == .tuya(account: account.uid) }
                 HStack {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Icon("checkmark.circle.fill").foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(account.app ?? "Conta Tuya").font(.system(size: 12, weight: .medium))
+                        Text(account.app ?? "Conta Tuya").font(Theme.font(12, .medium))
                         Text(devices.isEmpty ? "Nenhum aparelho" : devices.map(\.name).joined(separator: ", "))
-                            .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                            .font(Theme.font(10.5)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
                     Menu {
@@ -74,7 +74,7 @@ struct SettingsView: View {
                         Divider()
                         Button("Remover conta", role: .destructive) { store.removeTuya(uid: account.uid) }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Icon("ellipsis.circle")
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
@@ -91,12 +91,12 @@ struct SettingsView: View {
                             .padding(8)
                             .background(RoundedRectangle(cornerRadius: 12).fill(.white))
                         Text("No app **\(pairing.app)** (na conta \(pairing.app)), toque no ícone de leitor no canto de cima da tela inicial e escaneie. Depois confirme o login no celular.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .font(Theme.font(11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     HStack(spacing: 6) {
                         if pairing.qrPayload != nil { ProgressView().controlSize(.mini) }
-                        Text(pairing.message ?? "").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(pairing.message ?? "").font(Theme.font(11)).foregroundStyle(.secondary)
                     }
                     Button("Cancelar") { store.cancelPairing() }.controlSize(.small)
                 }
@@ -104,14 +104,15 @@ struct SettingsView: View {
             } else {
                 if !store.credentials.tuya.isEmpty { Divider().padding(.vertical, 2) }
                 Text(store.credentials.tuya.isEmpty ? "Conectar conta" : "Conectar outra conta")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Theme.font(12, .medium))
                 HStack(spacing: 6) {
                     ForEach(Self.tuyaApps, id: \.self) { app in
-                        Chip(title: app, selected: pairingApp == app) { pairingApp = app }
+                        Button(app) { pairingApp = app }
+                            .buttonStyle(SoftChipStyle(selected: pairingApp == app, tint: .accentColor))
                     }
                 }
                 Text("No app \(pairingApp), vá em **Eu → ⚙︎ Configurações → Conta e segurança → Código de usuário** e cole aqui.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     TextField("Código de usuário do \(pairingApp)", text: $userCode)
@@ -136,26 +137,26 @@ struct SettingsView: View {
         Panel(title: "SmartThings") {
             if let auth = store.credentials.smartThings {
                 HStack {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Icon("checkmark.circle.fill").foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Conectado").font(.system(size: 12, weight: .medium))
+                        Text("Conectado").font(Theme.font(12, .medium))
                         Text(auth.clientId.isEmpty ? "Token pessoal: vence \(auth.expiresAt.formatted(date: .omitted, time: .shortened))"
                                                    : "Renova sozinho")
-                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            .font(Theme.font(10.5)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Desconectar") { store.disconnectSmartThings() }.controlSize(.small)
                 }
             } else if let app = store.credentials.smartThingsApp {
                 Text("App OAuth pronto. O login da Samsung abre no seu navegador; depois de autorizar, volte aqui.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Entrar com a Samsung") { store.connectSmartThings(clientId: app.clientId, clientSecret: app.clientSecret) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
             } else {
                 Text("Use o Client ID e o Client Secret do app OAuth criado no SmartThings CLI. O login abre no seu navegador.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 TextField("Client ID", text: $clientId).textFieldStyle(.roundedBorder).controlSize(.small)
                 SecureField("Client Secret", text: $clientSecret).textFieldStyle(.roundedBorder).controlSize(.small)
@@ -169,7 +170,7 @@ struct SettingsView: View {
                 .controlSize(.small)
                 if showToken {
                     Text("Tokens de account.smartthings.com/tokens valem só 24 h. Bom para testar.")
-                        .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        .font(Theme.font(10.5)).foregroundStyle(.secondary)
                     HStack {
                         SecureField("Token", text: $token).textFieldStyle(.roundedBorder)
                         Button("Usar") { store.useSmartThingsToken(token) }.disabled(token.isEmpty)

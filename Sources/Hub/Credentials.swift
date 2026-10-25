@@ -17,7 +17,15 @@ struct Credentials: Codable, Equatable {
 
     static func load() -> Credentials {
         if let data = try? Data(contentsOf: url) {
-            return (try? JSONDecoder().decode(Credentials.self, from: data)) ?? Credentials()
+            if let credentials = try? JSONDecoder().decode(Credentials.self, from: data) { return credentials }
+            // Guarda o arquivo estragado: o próximo save() gravaria por cima e levaria tudo junto.
+            // Só a primeira vez: as credenciais são relidas a cada atualização (10 s).
+            let backup = url.appendingPathExtension("bad")
+            if !FileManager.default.fileExists(atPath: backup.path) {
+                try? FileManager.default.copyItem(at: url, to: backup)
+                debugLog("credenciais: não consegui ler \(url.lastPathComponent); cópia em \(backup.lastPathComponent)")
+            }
+            return Credentials()
         }
         // Primeira vez com arquivo: traz o que estava no Keychain (pede a senha uma última vez).
         guard let migrated = loadFromKeychain() else { return Credentials() }

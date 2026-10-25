@@ -46,6 +46,14 @@ final class HubStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var pollTimer: Timer?
     private var followUp: Task<Void, Never>?
+    private var volumeTask: Task<Void, Never>?
+    /// Comandos do ADB um depois do outro: em paralelo, o texto podia sair antes dos apagares.
+    private var adbQueue: Task<Void, Never>?
+
+    private func adb(_ work: @escaping @MainActor () async -> Void) {
+        let previous = adbQueue
+        adbQueue = Task { await previous?.value; await work() }
+    }
 
     init(sample: Bool = false) {
         credentials = Credentials()
@@ -244,14 +252,15 @@ final class HubStore: ObservableObject {
                     : capabilities.contains("switch") ? .plug : .other,
                 online: true, capabilities: capabilities
             )
-            device.status = (try? await client.status(device: id)) ?? [:]
+            // Celulares, TVs desligadas e afins não interessam aqui (e não gastam pedidos).
+            guard isAC || capabilities.contains("switch") else { continue }
+            // Falha no status sobe: o load() mantém a leitura anterior e mostra o erro, em vez de "Desligado".
+            device.status = try await client.status(device: id)
             if let online = await client.isOnline(device: id) {
                 device.online = online
             } else if let health = device.status["healthCheck.DeviceWatch-DeviceStatus"]?.string {
                 device.online = health != "offline"
             }
-            // Celulares, TVs desligadas e afins não interessam aqui.
-            guard isAC || capabilities.contains("switch") else { continue }
             result.append(device)
         }
         return result
@@ -280,19 +289,35 @@ final class HubStore: ObservableObject {
         remote.send(key)
     }
 
+    /// A TV só aceita + e −: toca quantas vezes for preciso até o volume pedido.
+    /// shortcut: supõe um ponto por toque (é assim na TCL); TV com passo maior passa do ponto, aí ler o passo do volume_max.
+    func tvSetVolume(_ device: HubDevice, to target: Int) {
+        let delta = target - Int(device.status["volume"]?.number ?? 0)
+        // Dois arrastes seguidos partiam do mesmo volume antigo e somavam os toques.
+        volumeTask?.cancel()
+        guard delta != 0 else { return }
+        volumeTask = Task {
+            for _ in 0..<min(abs(delta), Int(device.status["volume_max"]?.number ?? 100)) {
+                guard !Task.isCancelled else { return }
+                tvKey(device, delta > 0 ? .volumeUp : .volumeDown)
+                try? await Task.sleep(for: .milliseconds(60))
+            }
+        }
+    }
+
     func tvType(_ device: HubDevice, _ text: String) {
         guard case .androidTV(let host) = device.source else { return }
-        Task {
+        adb {
             if !(await ADB.type(text, host: host)) {
-                error = "Para digitar na TV, ligue a depuração por Wi‑Fi nas Opções do desenvolvedor."
+                self.error = "Para digitar na TV, ligue a depuração por Wi‑Fi nas Opções do desenvolvedor."
             }
         }
     }
 
     func tvDelete(_ device: HubDevice) {
         guard case .androidTV(let host) = device.source else { return }
-        Task {
-            if !(await ADB.key(ATVRemote.Key.delete.rawValue, host: host)) { tvKey(device, .delete) }
+        adb {
+            if !(await ADB.key(ATVRemote.Key.delete.rawValue, host: host)) { self.tvKey(device, .delete) }
         }
     }
 
@@ -305,17 +330,17 @@ final class HubStore: ObservableObject {
             remote.launch(link)
             // O Max abre a busca mas ignora o texto do link: espera a tela e digita pelo ADB.
             guard TVApps.typesAfterSearch.contains(package), !query.isEmpty else { return }
-            Task {
+            adb {
                 if !(await ADB.typeWhenReady(query, host: host)) {
-                    error = "Abri a busca, mas não consegui digitar: ligue a depuração por Wi‑Fi na TV."
+                    self.error = "Abri a busca, mas não consegui digitar: ligue a depuração por Wi‑Fi na TV."
                 }
             }
             return
         }
-        Task {
+        adb {
             if await ADB.search(query, package: package, host: host) { return }
             let app = TVApps.name(of: package) ?? "Esse app"
-            error = "\(app) não aceita busca direta. Abra a busca dele e use Enviar texto."
+            self.error = "\(app) não aceita busca direta. Abra a busca dele e use Enviar texto."
         }
     }
 
@@ -325,7 +350,7 @@ final class HubStore: ObservableObject {
         let prefix = "market://launch?id="
         guard link.hasPrefix(prefix) else { return remote.launch(link) }
         // Pelo link alguns apps (o Max) abrem numa tela de erro; pelo ADB abrem como na tela inicial.
-        Task {
+        adb {
             if await ADB.launch(package: String(link.dropFirst(prefix.count)), host: host) { return }
             remote.launch(link)
         }
