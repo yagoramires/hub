@@ -194,7 +194,7 @@ struct OptionsMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(device.name).font(Theme.font(13.5, .semibold)).padding(.horizontal, 4)
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 DeviceOptions(device: device).padding(.bottom, 4)
             }
             .frame(maxHeight: 520)

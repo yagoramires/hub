@@ -321,7 +321,7 @@ struct Scroller<Content: View>: View {
         } else if axis == .horizontal {
             ScrollView(.horizontal, showsIndicators: false) { content }
         } else {
-            ScrollView { content }
+            ScrollView(showsIndicators: false) { content }
                 .frame(maxHeight: 640)
                 .fixedSize(horizontal: false, vertical: true)
         }
