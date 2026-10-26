@@ -2,10 +2,12 @@
 import Foundation
 import PackageDescription
 
-// NeyKit vem do checkout do neyhub ao lado (ou NEYHUB_PATH). A identidade de `.package(path:)` é o nome
-// da pasta em minúsculas, então derivamos dela: funciona com worktrees.
-let neyhub = ProcessInfo.processInfo.environment["NEYHUB_PATH"] ?? "../neyhub"
-let hub = URL(fileURLWithPath: neyhub).lastPathComponent.lowercased()
+// NeyKit vem do neyhub publicado no GitHub. Para desenvolver junto com um checkout local: NEYHUB_PATH=../neyhub
+// (a identidade de `.package(path:)` é o nome da pasta em minúsculas, então derivamos dela: funciona com worktrees).
+let localNeyhub = ProcessInfo.processInfo.environment["NEYHUB_PATH"]
+let hub = localNeyhub.map { URL(fileURLWithPath: $0).lastPathComponent.lowercased() } ?? "neyhub"
+let neyhubPackage: Package.Dependency = localNeyhub.map { .package(path: $0) }
+    ?? .package(url: "https://github.com/yagoramires/neyhub.git", from: "0.1.0")
 let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
 let package = Package(
@@ -16,7 +18,7 @@ let package = Package(
         .executable(name: "Hub", targets: ["Hub"]),
         .library(name: "HubPlugin", type: .dynamic, targets: ["HubPlugin"]),
     ],
-    dependencies: [.package(path: neyhub)],
+    dependencies: [neyhubPackage],
     targets: [
         .target(name: "HubCore", dependencies: [.product(name: "NeyKit", package: hub)], path: "Sources/HubCore", swiftSettings: swift5),
         .executableTarget(
