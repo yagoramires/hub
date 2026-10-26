@@ -12,6 +12,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Menu Editar no modo Janela (⌘C, ⌘V e companhia nos campos de texto).
 
 ### Alterado
+- Ícone novo no padrão do NeyHub: o mesmo desenho, em fundo grafite com detalhe verde-limão.
 - O popover fecha ao clicar em outro app.
 - Sem as fontes ou os logos empacotados, o Hub usa a fonte do sistema e ícones genéricos (e avisa no registro) em vez de mostrar quadrados vazios.
 - O build exige o certificado local de assinatura (sem fallback ad-hoc).
