@@ -47,15 +47,15 @@ struct SettingsView: View {
                             HStack {
                                 Text("Atualização pronta — entra ao sair").font(Theme.font(11.5))
                                 Spacer()
-                                Button("Reiniciar agora") { shell.relaunch() }.accessibilityLabel("Reiniciar o Hub agora")
+                                GPill(title: "Reiniciar agora") { shell.relaunch() }.accessibilityLabel("Reiniciar o Domo agora")
                             }
                             .controlSize(.small)
                         }
                         HStack {
-                            Button("Abrir registro") { NSWorkspace.shared.open(Log.url) }
+                            GPill(title: "Abrir registro", style: .ghost) { NSWorkspace.shared.open(Log.url) }
                             Spacer()
-                            Text("Hub \(shell.state.version)").font(Theme.font(11)).foregroundStyle(.secondary)
-                            if shell.state.showsQuit { Button("Sair do Hub") { NSApp.terminate(nil) } }
+                            Text("Domo \(shell.state.version)").font(Theme.font(11)).foregroundStyle(.secondary)
+                            if shell.state.showsQuit { GPill(title: "Sair do Domo", style: .ghost) { NSApp.terminate(nil) } }
                         }
                         .controlSize(.small)
                     }
@@ -113,7 +113,7 @@ struct SettingsView: View {
                         if pairing.qrPayload != nil { ProgressView().controlSize(.mini) }
                         Text(pairing.message ?? "").font(Theme.font(11)).foregroundStyle(.secondary)
                     }
-                    Button("Cancelar") { store.cancelPairing() }.controlSize(.small)
+                    GPill(title: "Cancelar", style: .ghost) { store.cancelPairing() }
                 }
                 .frame(maxWidth: .infinity)
             } else {
@@ -123,7 +123,7 @@ struct SettingsView: View {
                 HStack(spacing: 6) {
                     ForEach(Self.tuyaApps, id: \.self) { app in
                         Button(app) { pairingApp = app }
-                            .buttonStyle(SoftChipStyle(selected: pairingApp == app, tint: .accentColor))
+                            .buttonStyle(SoftChipStyle(selected: pairingApp == app, tint: Grafite.accent))
                     }
                 }
                 Text("No app \(pairingApp), vá em **Eu → ⚙︎ Configurações → Conta e segurança → Código de usuário** e cole aqui.")
@@ -133,7 +133,7 @@ struct SettingsView: View {
                     TextField("Código de usuário do \(pairingApp)", text: $userCode)
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { pair() }
-                    Button("Gerar QR", action: pair)
+                    GPill(title: "Gerar QR", action: pair)
                         .disabled(userCode.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .controlSize(.small)
@@ -160,15 +160,13 @@ struct SettingsView: View {
                             .font(Theme.font(10.5)).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Desconectar") { store.disconnectSmartThings() }.controlSize(.small)
+                    GPill(title: "Desconectar", style: .ghost) { store.disconnectSmartThings() }
                 }
             } else if let app = store.credentials.smartThingsApp {
                 Text("App OAuth pronto. O login da Samsung abre no seu navegador; depois de autorizar, volte aqui.")
                     .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Entrar com a Samsung") { store.connectSmartThings(clientId: app.clientId, clientSecret: app.clientSecret) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                GPill(title: "Entrar com a Samsung") { store.connectSmartThings(clientId: app.clientId, clientSecret: app.clientSecret) }
             } else {
                 Text("Use o Client ID e o Client Secret do app OAuth criado no SmartThings CLI. O login abre no seu navegador.")
                     .font(Theme.font(11)).foregroundStyle(.secondary)
@@ -176,7 +174,7 @@ struct SettingsView: View {
                 TextField("Client ID", text: $clientId).textFieldStyle(.roundedBorder).controlSize(.small)
                 SecureField("Client Secret", text: $clientSecret).textFieldStyle(.roundedBorder).controlSize(.small)
                 HStack {
-                    Button("Entrar com a Samsung") { store.connectSmartThings(clientId: clientId, clientSecret: clientSecret) }
+                    GPill(title: "Entrar com a Samsung") { store.connectSmartThings(clientId: clientId, clientSecret: clientSecret) }
                         .disabled(clientId.isEmpty || clientSecret.isEmpty)
                     Spacer()
                     Button(showToken ? "Esconder" : "Usar token pessoal") { showToken.toggle() }
@@ -188,7 +186,7 @@ struct SettingsView: View {
                         .font(Theme.font(10.5)).foregroundStyle(.secondary)
                     HStack {
                         SecureField("Token", text: $token).textFieldStyle(.roundedBorder)
-                        Button("Usar") { store.useSmartThingsToken(token) }.disabled(token.isEmpty)
+                        GPill(title: "Usar") { store.useSmartThingsToken(token) }.disabled(token.isEmpty)
                     }
                     .controlSize(.small)
                 }

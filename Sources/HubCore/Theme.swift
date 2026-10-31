@@ -238,7 +238,7 @@ struct FoodBowl: Shape {
     }
 }
 
-/// Botão redondo pequeno com ícone, usado nos cabeçalhos.
+/// Botão quadrado pequeno com borda e ícone, usado nos cabeçalhos.
 struct IconButton: View {
     let symbol: String
     var help = ""
@@ -248,9 +248,11 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Icon(symbol, size: 13)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Color.primary.opacity(hover ? 0.12 : 0.06)))
-                .contentShape(Circle())
+                .foregroundStyle(Grafite.ghostText)
+                .frame(width: 26, height: 26)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.white.opacity(hover ? 0.06 : 0)))
+                .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Grafite.ghostBorder, lineWidth: 1))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }

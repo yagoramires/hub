@@ -54,6 +54,7 @@ enum Render {
             .environmentObject(shell)
             .background(dark ? Theme.room : Color(white: 0.95))
             .environment(\.colorScheme, dark ? .dark : .light)
+            .tint(Grafite.accent)
             // Telas com tamanho fixo rolam de verdade; o popover vira pilha (mostra tudo).
             .environment(\.hubSnapshot, size == nil)
         // NSHostingView (e não ImageRenderer): só ele desenha os controles nativos (seletor, campos, interruptores).

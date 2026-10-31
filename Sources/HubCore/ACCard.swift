@@ -33,7 +33,7 @@ struct ACCard: View {
         }
         .padding(14)
         .background(alignment: .top) { if on { Airflow(color: tint).frame(height: 34) } }
-        .card(on ? Color(light: 0xEAF4FC, dark: 0x1F2329) : Theme.matte, edge: tint.opacity(on ? 0.28 : 0.12))
+        .card()
         .glow(tint, on: on, radius: 40, opacity: 0.4)
         .opacity(device.online ? 1 : 0.55)
         .animation(.easeInOut(duration: 0.25), value: on)
@@ -49,7 +49,7 @@ struct ACCard: View {
                 Text(subtitle).font(Theme.font(11.5)).foregroundStyle(.secondary)
             }
             Spacer()
-            GlowPower(on: on, color: tint) { store.toggle(device) }
+            PowerSwitch(on: on, label: device.name) { store.toggle(device) }
                 .disabled(!device.online)
         }
     }
@@ -276,27 +276,18 @@ struct Airflow: View {
 }
 
 /// Liga/desliga que acende na cor do aparelho.
-struct GlowPower: View {
+/// Liga/desliga do aparelho no cabeçalho: o switch do NeyKit.
+struct PowerSwitch: View {
     let on: Bool
-    let color: Color
-    var ink: Color = .black.opacity(0.78)
+    let label: String
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Icon("power", size: 13)
-                .frame(width: 34, height: 34)
-                .foregroundStyle(on ? ink : .secondary)
-                .background(Circle().fill(on ? color : Color.primary.opacity(0.08)))
-                .shadow(color: on ? color.opacity(0.55) : .clear, radius: 9)
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressStyle())
-        .help(on ? "Desligar" : "Ligar")
+        GSwitch(isOn: Binding(get: { on }, set: { _ in action() }), label: label)
+            .help(on ? "Desligar" : "Ligar")
     }
 }
 
-/// Pílula discreta; escolhida, ganha a cor do aparelho.
 struct SoftChipStyle: ButtonStyle {
     let selected: Bool
     let tint: Color
@@ -308,8 +299,8 @@ struct SoftChipStyle: ButtonStyle {
             .fixedSize()
             .padding(.horizontal, 12)
             .frame(height: 28)
-            .foregroundStyle(selected ? Color.black.opacity(0.8) : Color.primary.opacity(0.8))
-            .background(Capsule().fill(selected ? tint : Theme.well))
+            .foregroundStyle(selected ? tint : Grafite.ghostText)
+            .overlay(Capsule().strokeBorder(selected ? tint : Grafite.ghostBorder, lineWidth: 1))
             .contentShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }

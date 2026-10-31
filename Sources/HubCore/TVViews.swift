@@ -159,15 +159,15 @@ struct TVCard: View {
             HStack(spacing: 10) {
                 Group {
                     if on, let current {
-                        AppLogo(app: current, corner: 10).shadow(color: light.opacity(0.5), radius: 10)
+                        AppLogo(app: current, corner: 8)
                     } else {
                         Icon("tv.fill", size: 14)
                             .foregroundStyle(on ? light : Color.secondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.well))
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? light.opacity(0.18) : Theme.well))
                     }
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(device.name).font(Theme.font(13.5, .semibold)).lineLimit(1)
                     Text(device.tvStatus).font(Theme.font(11.5)).foregroundStyle(.secondary)
@@ -175,13 +175,14 @@ struct TVCard: View {
                 Spacer()
                 Button(action: open) {
                     Icon("av.remote.fill", size: 13)
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(Theme.well))
-                        .contentShape(Circle())
+                        .foregroundStyle(Grafite.ghostText)
+                        .frame(width: 28, height: 28)
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Grafite.ghostBorder, lineWidth: 1))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PressStyle())
                 .help("Controle")
-                GlowPower(on: on, color: light, ink: light.ink) { store.toggle(device) }
+                PowerSwitch(on: on, label: device.name) { store.toggle(device) }
                     .disabled(!device.online)
             }
             if on {
@@ -191,8 +192,7 @@ struct TVCard: View {
                         Button { store.tvLaunch(device, app.link) } label: {
                             AppLogo(app: app, corner: 13)
                                 .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                    .strokeBorder(open ? app.color : .clear, lineWidth: 2).padding(-4))
-                                .shadow(color: open ? app.color.opacity(0.45) : .clear, radius: 9)
+                                    .strokeBorder(open ? Grafite.accent : .clear, lineWidth: 2).padding(-4))
                         }
                         .buttonStyle(PressStyle())
                         .help(app.name)
@@ -212,9 +212,8 @@ struct TVCard: View {
             }
         }
         .padding(12)
-        .card(on ? light.opacity(0.08) : Theme.matte, edge: on ? light.opacity(0.3) : nil)
-        .background(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous).fill(Theme.matte))
-        .glow(light, on: on, radius: 38, opacity: 0.35)
+        .card()
+        .glow(light, on: on)
         .animation(.easeOut(duration: 0.3), value: device.status["app"]?.string)
         .onReceive(NotificationCenter.default.publisher(for: TVApps.changed)) { _ in apps = TVApps.load() }
     }
@@ -657,7 +656,7 @@ struct TVSettingsPanel: View {
                         Text(tv.host).font(Theme.font(10.5)).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Remover") { store.removeTV(host: tv.host) }.controlSize(.small)
+                    GPill(title: "Remover", style: .ghost) { store.removeTV(host: tv.host) }
                 }
             }
 
@@ -673,13 +672,12 @@ struct TVSettingsPanel: View {
                                 .textFieldStyle(.roundedBorder)
                                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                                 .onSubmit { store.finishTVPairing(code: code) }
-                            Button("Confirmar") { store.finishTVPairing(code: code) }
-                                .buttonStyle(.borderedProminent)
+                            GPill(title: "Confirmar") { store.finishTVPairing(code: code) }
                                 .disabled(code.trimmingCharacters(in: .whitespaces).count != 6)
                         }
                         .controlSize(.small)
                     }
-                    Button("Cancelar") { store.cancelTVPairing(); code = "" }.controlSize(.small)
+                    GPill(title: "Cancelar", style: .ghost) { store.cancelTVPairing(); code = "" }
                 }
             } else if let scan = store.tvScan {
                 if scan.searching {
@@ -690,7 +688,7 @@ struct TVSettingsPanel: View {
                 } else if scan.found.isEmpty {
                     Text("Nenhuma TV nova encontrada. Ela precisa estar ligada e no mesmo Wi‑Fi.")
                         .font(Theme.font(11)).foregroundStyle(.secondary)
-                    Button("Procurar de novo") { store.scanTVs() }.controlSize(.small)
+                    GPill(title: "Procurar de novo", style: .ghost) { store.scanTVs() }
                 } else {
                     ForEach(scan.found) { tv in
                         HStack {
@@ -699,12 +697,10 @@ struct TVSettingsPanel: View {
                                 Text(tv.host).font(Theme.font(10.5)).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("Parear") {
+                            GPill(title: "Parear") {
                                 code = ""
                                 store.startTVPairing(name: name.isEmpty ? tv.name : name, host: tv.host)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
                         }
                     }
                     TextField("Nome no Hub (opcional, ex.: TV da sala)", text: $name)
@@ -715,7 +711,7 @@ struct TVSettingsPanel: View {
                 Text("Liga, desliga, volume, direcional e apps, direto pela rede de casa. Na primeira vez a TV mostra um código.")
                     .font(Theme.font(11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Procurar TV") { store.scanTVs() }.controlSize(.small)
+                GPill(title: "Procurar TV", style: .ghost) { store.scanTVs() }
             }
         }
     }

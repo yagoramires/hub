@@ -108,7 +108,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.greeting).font(Theme.font(20, .semibold))
+                Text(store.greeting).font(Theme.font(15, .bold))
                 Text(store.summary).font(Theme.font(12)).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()

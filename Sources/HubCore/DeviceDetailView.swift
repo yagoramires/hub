@@ -45,7 +45,7 @@ struct DeviceDetailView: View {
             }
             Spacer()
             if device.canToggle, device.source != .smartThings {
-                GlowPower(on: device.isOn, color: light, ink: light.ink) { store.toggle(device) }
+                PowerSwitch(on: device.isOn, label: device.name) { store.toggle(device) }
             }
         }
     }
@@ -472,7 +472,7 @@ struct Panel<Content: View>: View {
 struct ToggleRow: View {
     let title: String
     let isOn: Bool
-    var tint: Color = .accentColor
+    var tint: Color = Grafite.accent
     let set: (Bool) -> Void
 
     var body: some View {
@@ -495,7 +495,7 @@ struct SpecSlider: View {
     let title: String
     let spec: DPSpec
     let raw: Double
-    var tint: Color = .accentColor
+    var tint: Color = Grafite.accent
     let commit: (Double) -> Void
 
     @ViewState private var dragging: Double? = nil

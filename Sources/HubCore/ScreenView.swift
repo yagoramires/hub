@@ -47,16 +47,20 @@ struct ScreenView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.greeting).font(Theme.font(30, .bold))
-                Text(store.summary).font(Theme.font(15)).foregroundStyle(.secondary).lineLimit(2)
+                Text(store.greeting).font(Theme.font(18, .bold)).foregroundStyle(Grafite.strong)
+                Text(store.summary).font(Theme.font(12)).foregroundStyle(Grafite.muted).lineLimit(2)
             }
             Spacer(minLength: 12)
-            HStack(spacing: 6) {
+            // Abas segmentadas, como as da tela do Dose.
+            HStack(spacing: 4) {
                 ForEach(Tab.allCases, id: \.self) { item in
                     Button(item.rawValue) { withAnimation(.snappy(duration: 0.25)) { tab = item } }
                         .buttonStyle(TabStyle(selected: tab == item))
                 }
             }
+            .padding(3)
+            .background(Grafite.card, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Grafite.border, lineWidth: 1))
             .padding(.trailing, 4)
             IconButton(symbol: "arrow.clockwise", help: "Atualizar") { Task { await store.refresh() } }
                 .rotationEffect(.degrees(store.loading ? 360 : 0))
@@ -191,12 +195,12 @@ private struct TabStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.font(13, .bold))
-            .padding(.horizontal, 16)
-            .frame(height: 32)
-            .foregroundStyle(selected ? Color.black.opacity(0.88) : Color.secondary)
-            .background(Capsule().fill(selected ? Color.white : Theme.well))
-            .contentShape(Capsule())
+            .font(Theme.font(12))
+            .padding(.horizontal, 11)
+            .frame(height: 24)
+            .foregroundStyle(selected ? Grafite.strong : Grafite.muted)
+            .background(RoundedRectangle(cornerRadius: 6).fill(selected ? Color(red: 0.165, green: 0.176, blue: 0.2) : .clear))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }
