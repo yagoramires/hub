@@ -115,7 +115,7 @@ struct FeederCard: View {
         .padding(.horizontal, 10)
         .frame(height: 56)
         .card(edge: feeding ? accent.opacity(0.5) : nil)
-        .glow(accent, on: feeding, radius: 22, opacity: 0.5)
+        .glow(accent, on: feeding)
         .opacity(device.online ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous))
         .onTapGesture { if let select { select() } else { options = true } }

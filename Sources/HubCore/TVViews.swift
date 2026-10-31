@@ -129,8 +129,6 @@ extension HubDevice {
         return "Ligada"
     }
 
-    /// Luz da TV ligada: o verde do app, qualquer que seja o app aberto.
-    func tvLight(_ apps: [TVApps.App]) -> Color { Grafite.accent }
 }
 
 extension Color {
@@ -151,7 +149,7 @@ struct TVCard: View {
     @ViewState private var apps = TVApps.load()
 
     private var on: Bool { device.online && device.isOn }
-    private var light: Color { device.tvLight(apps) }
+    private var light: Color { Theme.accent(.tv) }
     private var current: TVApps.App? { TVApps.app(package: device.status["app"]?.string, in: apps) }
 
     var body: some View {
@@ -316,7 +314,7 @@ struct TVRemoteView: View {
     private var package: String { device.status["app"]?.string ?? "" }
     private var appName: String { TVApps.name(of: package) ?? "app" }
     private var canSearch: Bool { TVApps.searchLink(package: package, query: "") != nil || package == "com.globo.globotv" }
-    private var light: Color { device.tvLight(apps) }
+    private var light: Color { Theme.accent(.tv) }
     private var current: TVApps.App? { TVApps.app(package: package, in: apps) }
 
     /// Com texto, busca direto; vazio, só abre a busca do app.
@@ -545,9 +543,9 @@ struct TVRemoteView: View {
     /// Botão comprido de dois lados (VOL, CH).
     private func rocker(_ title: String, up: (String, String, ATVRemote.Key), down: (String, String, ATVRemote.Key)) -> some View {
         VStack(spacing: 0) {
-            ForEach([up], id: \.1) { rockerKey($0) }
+            rockerKey(up)
             Text(title).font(Theme.font(9, .bold)).tracking(1).foregroundStyle(Grafite.label)
-            ForEach([down], id: \.1) { rockerKey($0) }
+            rockerKey(down)
         }
         .frame(width: 42, height: 170)
         .background(Capsule().fill(Theme.well))

@@ -34,7 +34,7 @@ struct ACCard: View {
         .padding(14)
         .background(alignment: .top) { if on { Airflow(color: tint).frame(height: 34) } }
         .card()
-        .glow(tint, on: on, radius: 40, opacity: 0.4)
+        .glow(tint, on: on)
         .opacity(device.online ? 1 : 0.55)
         .animation(.easeInOut(duration: 0.25), value: on)
         .animation(.easeInOut(duration: 0.25), value: device.acMode)

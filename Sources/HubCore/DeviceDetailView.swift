@@ -13,7 +13,7 @@ struct DeviceDetailView: View {
     private var light: Color {
         switch device.kind {
         case .light: Theme.lightFill(device).glow
-        case .tv: device.tvLight(TVApps.load())
+        case .tv: Theme.accent(.tv)
         default: accent
         }
     }

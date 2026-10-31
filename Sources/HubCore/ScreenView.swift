@@ -217,7 +217,7 @@ struct RoomGlows: View {
                 Theme.room
                 glow(Theme.accent(.airConditioner), on: store.climate.contains { $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.2, y: size.height * 0.3), size: CGSize(width: 600, height: 300))
-                glow(store.televisions.first.map { $0.tvLight(TVApps.load()) } ?? Theme.accent(.tv), on: store.televisions.contains { $0.online && $0.isOn },
+                glow(Theme.accent(.tv), on: store.televisions.contains { $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.6, y: size.height * 0.7), size: CGSize(width: 500, height: 300))
                 glow(Theme.accent(.light), on: store.tiles.contains { $0.kind == .light && $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.85, y: size.height * 0.4), size: CGSize(width: 400, height: 260))

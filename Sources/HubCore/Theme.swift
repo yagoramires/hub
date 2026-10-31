@@ -288,8 +288,8 @@ extension Color {
 
 extension View {
     /// Halo do aparelho ligado: o cartão acende por dentro (canto de cima), a borda pega a cor e a luz vaza por trás.
-    /// `radius`/`opacity` ficaram dos chamadores antigos; a intensidade é a mesma em todo aparelho (aprovada no mockup).
-    func glow(_ color: Color, on: Bool = true, radius: CGFloat = 0, opacity: Double = 0) -> some View {
+    /// A intensidade é a mesma em todo aparelho (aprovada no mockup).
+    func glow(_ color: Color, on: Bool = true) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous)
         return overlay {
             if on {

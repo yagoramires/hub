@@ -57,8 +57,6 @@ enum SelfTest {
         precondition(Theme.accent(.tv) == Grafite.accent && Theme.accent(.feeder) == Grafite.accent, "TV e ração no verde do app")
         precondition(Theme.tileCorner == Grafite.cardRadius && Theme.room == Grafite.bg && Theme.matte == Grafite.card)
         let store = HubStore(sample: true)
-        precondition(!store.televisions.isEmpty && store.televisions.allSatisfy { $0.tvLight(TVApps.load()) == Grafite.accent },
-                     "o brilho da TV não segue a cor do app aberto")
         var red = store.tiles.first { $0.id == "light" }!
         red.status["work_mode"] = .string("colour")
         red.status["colour_data_v2"] = .string(#"{"h":0,"s":1000,"v":1000}"#)
