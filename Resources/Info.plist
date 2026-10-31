@@ -15,7 +15,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.0</string>
+	<string>0.3.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -28,11 +28,11 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>2</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>15.0</string>
+	<string>3</string>
 	<key>LSHasLocalizedDisplayName</key>
 	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSBonjourServices</key>
@@ -42,11 +42,11 @@
 		<string>_airplay._tcp</string>
 		<string>_hap._tcp</string>
 	</array>
-	<key>NeyHubAware</key>
-	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>O Hub conversa direto com a sua TV na rede de casa para ligar, mudar o volume e abrir apps.</string>
+	<key>NeyHubAware</key>
+	<true/>
 </dict>
 </plist>

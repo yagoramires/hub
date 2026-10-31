@@ -2,7 +2,7 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
-## [Não lançado]
+## [0.3.0] - 2026-10-31
 
 ### Alterado
 - O Hub agora se chama **Domo**. Só o nome que aparece mudou: o app continua `Hub.app`, os arquivos de release continuam `Hub-x.y.z`, e contas, tokens, TVs pareadas e ajustes ficam onde estavam (a atualização automática segue funcionando).
