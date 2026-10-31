@@ -48,6 +48,7 @@ enum SelfTest {
         precondition(Icon.lucideCodes["house.wifi"] == 0xe63c)
         let image = Theme.menuBarImage(anyOn: false)
         precondition(image.isTemplate && image.size == NSSize(width: 18, height: 18))
+        precondition(image.accessibilityDescription == "Domo", "o VoiceOver lê o ícone da barra")
     }
 
     /// Tema Grafite do NeyHub: TV e ração no verde do app, cantos e fundos do NeyKit; a cor que a pessoa escolhe para uma

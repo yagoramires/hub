@@ -51,6 +51,7 @@ enum Theme {
                 return true
             }
             image.isTemplate = true
+            image.accessibilityDescription = "Domo"
             return image
         }
         let image = NSImage(systemSymbolName: anyOn ? "house.fill" : "house", accessibilityDescription: "Domo") ?? NSImage(size: NSSize(width: 18, height: 18))

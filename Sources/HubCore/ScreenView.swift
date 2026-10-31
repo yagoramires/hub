@@ -190,7 +190,8 @@ struct ScreenView: View {
 }
 
 /// Aba do cabeçalho: a escolhida é a pílula clara, como no mockup.
-private struct TabStyle: ButtonStyle {
+/// Aba do segmentado no padrão do Dose (abas da tela, Setas/Touchpad do controle).
+struct TabStyle: ButtonStyle {
     let selected: Bool
 
     func makeBody(configuration: Configuration) -> some View {

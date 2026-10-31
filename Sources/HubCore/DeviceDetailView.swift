@@ -422,9 +422,7 @@ struct FeederControls: View {
                 .buttonStyle(PressStyle())
                 .disabled(!device.online || feeding)
             } else if device.functions["quick_feed"] != nil {
-                Button("Servir agora") { store.setTuya(device, "quick_feed", true) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent(.feeder))
+                GPill(title: "Servir agora") { store.setTuya(device, "quick_feed", true) }
             }
             if let last = device.status["feed_report"]?.number, last > 0 {
                 Text("Última refeição: \(Int(last)) \(last == 1 ? "porção" : "porções")")

@@ -356,15 +356,19 @@ struct TVRemoteView: View {
                     key("line.3.horizontal", "Menu", .menu)
                     key("gearshape.fill", "Ajustes da TV", .settings)
                 }
-                Picker("Direcional", selection: Binding(get: { usesPad }, set: { pad in
-                    usesPad = pad
-                    TVApps.userDefaults.set(pad, forKey: "tvTouchpad")
-                })) {
-                    Text("Touchpad").tag(true)
-                    Text("Setas").tag(false)
+                // Segmentado igual às abas da tela (o nativo pinta o selecionado de verde com texto branco).
+                HStack(spacing: 4) {
+                    ForEach([true, false], id: \.self) { pad in
+                        Button {
+                            usesPad = pad
+                            TVApps.userDefaults.set(pad, forKey: "tvTouchpad")
+                        } label: { Text(pad ? "Touchpad" : "Setas").frame(maxWidth: .infinity) }
+                        .buttonStyle(TabStyle(selected: usesPad == pad))
+                    }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                .padding(3)
+                .background(Grafite.card, in: RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Grafite.border, lineWidth: 1))
 
                 // VOL e CH dos lados das setas (ou do touchpad), como num controle de verdade.
                 HStack(spacing: 10) {
