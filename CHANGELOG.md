@@ -2,6 +2,16 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [Não lançado]
+
+### Alterado
+- O Hub agora se chama **Domo**. Só o nome que aparece mudou: o app continua `Hub.app`, os arquivos de release continuam `Hub-x.y.z`, e contas, tokens, TVs pareadas e ajustes ficam onde estavam (a atualização automática segue funcionando).
+- Visual no padrão do NeyHub (tema Grafite): fundo e cartões grafite, fonte do sistema, liga/desliga em switch e ícones Lucide. O aparelho ligado acende em halo na cor dele (ar azul, luz na cor real, TV e tomada em verde); TV e ração usam o verde do app.
+- Ícone novo: a casa com sinal (`house-wifi`, do Lucide), também na barra de menus.
+
+### Adicionado
+- Controle da TV completo: canal (CH ▲/▼) e volume (VOL +/−) dos lados das setas, ligar, entrada, assistente, menu, informações, legendas, mudo e os botões de mídia (anterior, voltar, play/pause, avançar, próximo).
+
 ## [0.2.0] - 2026-10-25
 
 ### Adicionado

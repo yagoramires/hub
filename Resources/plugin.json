@@ -1,6 +1,7 @@
 {
   "id": "local.hub",
   "name": "Hub",
+  "displayName": "Domo",
   "hasScreen": true,
   "permissions": [],
   "binary": "libHubPlugin.dylib",

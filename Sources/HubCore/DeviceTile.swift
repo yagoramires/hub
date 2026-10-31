@@ -1,8 +1,8 @@
 import NeyKit
 import SwiftUI
 
-/// Botão compacto da grade: o círculo da direita liga e desliga; clicar em qualquer outro ponto
-/// abre o menu com as opções do aparelho. Aceso, o botão inteiro vira luz.
+/// Cartão da grade: ícone na cor do tipo e o switch em cima, nome e estado embaixo; clicar fora do switch abre as
+/// opções do aparelho. Ligado, acende em halo na cor dele (a luz, na cor real).
 struct DeviceTile: View {
     @EnvironmentObject private var store: HubStore
     let device: HubDevice
@@ -11,66 +11,38 @@ struct DeviceTile: View {
     var select: (() -> Void)?
     @ViewState private var options = false
 
-    private var accent: Color { Theme.accent(device.kind) }
     private var on: Bool { device.online && device.isOn }
-    private var lit: Bool { on && device.kind == .light }
-    private var fill: (low: Color, high: Color, glow: Color) { Theme.lightFill(device) }
-    /// Tinta escura por cima da luz acesa.
-    private let dark = Color(red: 0.23, green: 0.14, blue: 0)
+    /// Cor do ícone e do halo: a da luz acesa, senão a do tipo.
+    private var tint: Color { device.kind == .light && on ? Theme.lightFill(device).glow : Theme.accent(device.kind) }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Icon(device.online ? Theme.symbol(device) : "wifi.slash", size: 15)
-                .foregroundStyle(lit ? dark : on ? accent : Color.secondary)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(lit ? Color.white.opacity(0.45) : on ? accent.opacity(0.16) : Theme.well))
-                .overlay(alignment: .topTrailing) {
-                    if device.kind == .plug && on {
-                        Circle().fill(accent).frame(width: 7, height: 7).shadow(color: accent, radius: 5)
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Icon(device.online ? Theme.symbol(device) : "wifi.slash", size: 15)
+                    .foregroundStyle(device.online ? tint : Color.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(device.online ? tint.opacity(on ? 0.18 : 0.12) : Theme.well))
+                    .shadow(color: on ? tint.opacity(0.3) : .clear, radius: 5)
+                Spacer(minLength: 4)
+                if device.canToggle, device.kind != .remote {
+                    GSwitch(isOn: Binding(get: { on }, set: { _ in store.toggle(device) }), label: device.name)
+                        .disabled(!device.online)
+                        .help(on ? "Desligar" : "Ligar")
                 }
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(device.name).font(Theme.font(12.5, .semibold)).lineLimit(1).minimumScaleFactor(0.85)
-                    .foregroundStyle(lit ? dark : Color.primary)
                 Text(status).font(Theme.font(11)).lineLimit(1)
-                    .foregroundStyle(lit ? dark.opacity(0.72) : Color.secondary)
-            }
-            Spacer(minLength: 4)
-            if device.canToggle, device.kind != .remote {
-                Button { store.toggle(device) } label: {
-                    Icon("power", size: 12)
-                        .frame(width: 28, height: 28)
-                        .foregroundStyle(lit ? dark : on ? Color.black.opacity(0.78) : Color.secondary)
-                        .background(Circle().fill(lit ? Color.white.opacity(0.7) : on ? accent : Theme.well))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(PressStyle())
-                .disabled(!device.online)
-                .help(on ? "Desligar" : "Ligar")
+                    .foregroundStyle(on ? tint.opacity(0.9) : Color.secondary)
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 56)
-        .background {
-            if lit {
-                LinearGradient(colors: [fill.low, fill.high], startPoint: .leading, endPoint: .trailing)
-            }
-        }
-        .overlay(alignment: .bottomLeading) {
-            // Brilho numa barrinha embaixo, para a luz que regula.
-            if lit, let brightness = device.brightness {
-                GeometryReader { geometry in
-                    Capsule().fill(dark.opacity(0.35))
-                        .frame(width: max(geometry.size.width - 28, 0) * brightness, height: 3)
-                        .offset(x: 14, y: geometry.size.height - 7)
-                }
-            }
-        }
-        .card(device.kind == .plug && on ? Color(light: 0xECF8F1, dark: 0x1F2522) : Theme.matte,
-              edge: on ? (lit ? fill.glow : accent).opacity(0.35) : nil, corner: 18)
-        .glow(fill.glow, on: lit, radius: 22, opacity: 0.25 + 0.3 * (device.brightness ?? 1))
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .glow(tint, on: on)
         .opacity(device.online ? 1 : 0.5)
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous))
         .onTapGesture { if let select { select() } else if device.kind == .remote { open() } else { options = true } }
         .popover(isPresented: $options, arrowEdge: .bottom) {
             OptionsMenu(device: device).environmentObject(store)
@@ -89,7 +61,7 @@ struct DeviceTile: View {
         switch device.kind {
         case .light:
             guard on else { return "Apagada" }
-            return device.brightness.map { "\(Int(($0 * 100).rounded()))%" } ?? "Acesa"
+            return device.brightness.map { "Acesa · \(Int(($0 * 100).rounded()))%" } ?? "Acesa"
         case .plug:
             guard on else { return "Desligada" }
             if let power = device.reading("cur_power"), power.value > 0 {
@@ -142,10 +114,10 @@ struct FeederCard: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 56)
-        .card(edge: feeding ? accent.opacity(0.5) : nil, corner: 18)
-        .glow(accent, on: feeding, radius: 22, opacity: 0.5)
+        .card(edge: feeding ? accent.opacity(0.5) : nil)
+        .glow(accent, on: feeding)
         .opacity(device.online ? 1 : 0.5)
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous))
         .onTapGesture { if let select { select() } else { options = true } }
         .popover(isPresented: $options, arrowEdge: .bottom) {
             OptionsMenu(device: device).environmentObject(store)

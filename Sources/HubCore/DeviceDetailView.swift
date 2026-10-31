@@ -13,7 +13,7 @@ struct DeviceDetailView: View {
     private var light: Color {
         switch device.kind {
         case .light: Theme.lightFill(device).glow
-        case .tv: device.tvLight(TVApps.load())
+        case .tv: Theme.accent(.tv)
         default: accent
         }
     }
@@ -24,7 +24,7 @@ struct DeviceDetailView: View {
                 .background(alignment: .top) {
                     if device.kind == .light, device.isOn {
                         SoftGlow(color: light, width: 420, height: 360, spread: 90)
-                            .opacity(0.25 + 0.3 * (device.brightness ?? 1)).offset(y: 40)
+                            .opacity(0.18).offset(y: 40)
                     }
                 }
             Scroller {
@@ -45,7 +45,7 @@ struct DeviceDetailView: View {
             }
             Spacer()
             if device.canToggle, device.source != .smartThings {
-                GlowPower(on: device.isOn, color: light, ink: light.ink) { store.toggle(device) }
+                PowerSwitch(on: device.isOn, label: device.name) { store.toggle(device) }
             }
         }
     }
@@ -422,9 +422,7 @@ struct FeederControls: View {
                 .buttonStyle(PressStyle())
                 .disabled(!device.online || feeding)
             } else if device.functions["quick_feed"] != nil {
-                Button("Servir agora") { store.setTuya(device, "quick_feed", true) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent(.feeder))
+                GPill(title: "Servir agora") { store.setTuya(device, "quick_feed", true) }
             }
             if let last = device.status["feed_report"]?.number, last > 0 {
                 Text("Última refeição: \(Int(last)) \(last == 1 ? "porção" : "porções")")
@@ -465,14 +463,14 @@ struct Panel<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(corner: 20)
+        .card()
     }
 }
 
 struct ToggleRow: View {
     let title: String
     let isOn: Bool
-    var tint: Color = .accentColor
+    var tint: Color = Grafite.accent
     let set: (Bool) -> Void
 
     var body: some View {
@@ -495,7 +493,7 @@ struct SpecSlider: View {
     let title: String
     let spec: DPSpec
     let raw: Double
-    var tint: Color = .accentColor
+    var tint: Color = Grafite.accent
     let commit: (Double) -> Void
 
     @ViewState private var dragging: Double? = nil

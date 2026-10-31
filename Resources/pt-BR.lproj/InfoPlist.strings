@@ -1,0 +1,3 @@
+/* O nome que aparece é Domo; o arquivo, o id e os assets seguem "Hub" (o atualizador procura por eles). */
+"CFBundleDisplayName" = "Domo";
+"CFBundleName" = "Domo";

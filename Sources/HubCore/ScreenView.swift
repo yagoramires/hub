@@ -47,16 +47,20 @@ struct ScreenView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.greeting).font(Theme.font(30, .bold))
-                Text(store.summary).font(Theme.font(15)).foregroundStyle(.secondary).lineLimit(2)
+                Text(store.greeting).font(Theme.font(18, .bold)).foregroundStyle(Grafite.strong)
+                Text(store.summary).font(Theme.font(12)).foregroundStyle(Grafite.muted).lineLimit(2)
             }
             Spacer(minLength: 12)
-            HStack(spacing: 6) {
+            // Abas segmentadas, como as da tela do Dose.
+            HStack(spacing: 4) {
                 ForEach(Tab.allCases, id: \.self) { item in
                     Button(item.rawValue) { withAnimation(.snappy(duration: 0.25)) { tab = item } }
                         .buttonStyle(TabStyle(selected: tab == item))
                 }
             }
+            .padding(3)
+            .background(Grafite.card, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Grafite.border, lineWidth: 1))
             .padding(.trailing, 4)
             IconButton(symbol: "arrow.clockwise", help: "Atualizar") { Task { await store.refresh() } }
                 .rotationEffect(.degrees(store.loading ? 360 : 0))
@@ -154,7 +158,7 @@ struct ScreenView: View {
         if let device = store.devices.first(where: { $0.id == selected }) {
             DeviceDetailView(device: device) { selected = nil }
                 .id(device.id)
-                .card(corner: 26)
+                .card()
         } else {
             VStack(spacing: 10) {
                 Icon("hand.draw", size: 22).foregroundStyle(.secondary)
@@ -163,7 +167,7 @@ struct ScreenView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, minHeight: 220)
-            .card(corner: 26)
+            .card()
         }
     }
 
@@ -186,17 +190,18 @@ struct ScreenView: View {
 }
 
 /// Aba do cabeçalho: a escolhida é a pílula clara, como no mockup.
-private struct TabStyle: ButtonStyle {
+/// Aba do segmentado no padrão do Dose (abas da tela, Setas/Touchpad do controle).
+struct TabStyle: ButtonStyle {
     let selected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.font(13, .bold))
-            .padding(.horizontal, 16)
-            .frame(height: 32)
-            .foregroundStyle(selected ? Color.black.opacity(0.88) : Color.secondary)
-            .background(Capsule().fill(selected ? Color.white : Theme.well))
-            .contentShape(Capsule())
+            .font(Theme.font(12))
+            .padding(.horizontal, 11)
+            .frame(height: 24)
+            .foregroundStyle(selected ? Grafite.strong : Grafite.muted)
+            .background(RoundedRectangle(cornerRadius: 6).fill(selected ? Color(red: 0.165, green: 0.176, blue: 0.2) : .clear))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }
@@ -212,7 +217,7 @@ struct RoomGlows: View {
                 Theme.room
                 glow(Theme.accent(.airConditioner), on: store.climate.contains { $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.2, y: size.height * 0.3), size: CGSize(width: 600, height: 300))
-                glow(store.televisions.first.map { $0.tvLight(TVApps.load()) } ?? Theme.accent(.tv), on: store.televisions.contains { $0.online && $0.isOn },
+                glow(Theme.accent(.tv), on: store.televisions.contains { $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.6, y: size.height * 0.7), size: CGSize(width: 500, height: 300))
                 glow(Theme.accent(.light), on: store.tiles.contains { $0.kind == .light && $0.online && $0.isOn },
                      at: CGPoint(x: size.width * 0.85, y: size.height * 0.4), size: CGSize(width: 400, height: 260))
@@ -223,7 +228,7 @@ struct RoomGlows: View {
 
     /// Gradiente radial (e não blur): a luz se espalha igual na tela e no `--render`.
     private func glow(_ color: Color, on: Bool, at point: CGPoint, size: CGSize) -> some View {
-        Ellipse().fill(RadialGradient(colors: [color.opacity(0.22), color.opacity(0)], center: .center, startRadius: 0,
+        Ellipse().fill(RadialGradient(colors: [color.opacity(0.12), color.opacity(0)], center: .center, startRadius: 0,
                                       endRadius: size.width / 2))
             .scaleEffect(x: 1, y: size.height / size.width)
             .frame(width: size.width, height: size.width)

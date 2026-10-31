@@ -14,6 +14,10 @@ enum SelfTest {
         defer { try? FileManager.default.removeItem(at: dir) }
         // Antes de qualquer fonte registrada no processo: sem recursos não pode quebrar.
         missingResources()
+        icons()
+        grafite()
+        tvKeys()
+        displayName()
         protocols()
         mealPlan()
         credentialsFolder(dir)
@@ -37,12 +41,56 @@ enum SelfTest {
         precondition(LoginRoute.decide(hosted: true, neyHub: nil, started: false) == .wait)
     }
 
+    /// Lucide do .app: todo ícone do mapa existe na fonte (código errado vira quadrado vazio), inclusive o house-wifi.
+    private static func icons() {
+        precondition(Theme.hasLucide)
+        for (name, code) in Icon.lucideCodes { precondition(Theme.lucideHasGlyph(code), "sem glifo na Lucide: \(name)") }
+        precondition(Icon.lucideCodes["house.wifi"] == 0xe63c)
+        let image = Theme.menuBarImage(anyOn: false)
+        precondition(image.isTemplate && image.size == NSSize(width: 18, height: 18))
+        precondition(image.accessibilityDescription == "Domo", "o VoiceOver lê o ícone da barra")
+    }
+
+    /// Tema Grafite do NeyHub: TV e ração no verde do app, cantos e fundos do NeyKit; a cor que a pessoa escolhe para uma
+    /// luz não muda (o "nada vermelho" é só das cores do app).
+    private static func grafite() {
+        precondition(Theme.accent(.tv) == Grafite.accent && Theme.accent(.feeder) == Grafite.accent, "TV e ração no verde do app")
+        precondition(Theme.tileCorner == Grafite.cardRadius && Theme.room == Grafite.bg && Theme.matte == Grafite.card)
+        let store = HubStore(sample: true)
+        var red = store.tiles.first { $0.id == "light" }!
+        red.status["work_mode"] = .string("colour")
+        red.status["colour_data_v2"] = .string(#"{"h":0,"s":1000,"v":1000}"#)
+        let c = NSColor(Theme.lightFill(red).glow).usingColorSpace(.sRGB)!
+        precondition(c.redComponent > 0.9 && c.greenComponent < 0.3 && c.blueComponent < 0.3, "luz vermelha escolhida continua vermelha")
+    }
+
+    /// Botões novos do controle: códigos KEYCODE_* do Android.
+    private static func tvKeys() {
+        precondition(ATVRemote.Key.channelUp.rawValue == 166 && ATVRemote.Key.channelDown.rawValue == 167)
+        precondition(ATVRemote.Key.info.rawValue == 165 && ATVRemote.Key.captions.rawValue == 175 && ATVRemote.Key.assist.rawValue == 219)
+        precondition(ATVRemote.Key.mediaPrevious.rawValue == 88 && ATVRemote.Key.mediaNext.rawValue == 87)
+        precondition(ATVRemote.Key.mediaRewind.rawValue == 89 && ATVRemote.Key.mediaFastForward.rawValue == 90 && ATVRemote.Key.menu.rawValue == 82)
+    }
+
+    /// O nome que aparece é Domo; arquivos, assets e ids seguem "Hub" (o NeyHub e o atualizador procuram por eles).
+    private static func displayName() {
+        let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources")
+        let plugin = try! JSONSerialization.jsonObject(with: Data(contentsOf: resources.appendingPathComponent("plugin.json"))) as! [String: Any]
+        precondition(plugin["id"] as? String == "local.hub" && plugin["name"] as? String == "Hub" && plugin["displayName"] as? String == "Domo")
+        for lang in ["pt-BR", "en"] {
+            let strings = NSDictionary(contentsOf: resources.appendingPathComponent("\(lang).lproj/InfoPlist.strings"))
+            precondition(strings?["CFBundleDisplayName"] as? String == "Domo" && strings?["CFBundleName"] as? String == "Domo", lang)
+        }
+        let info = NSDictionary(contentsOf: resources.appendingPathComponent("Info.plist"))!
+        precondition(info["CFBundleIdentifier"] as? String == "local.hub" && info["CFBundleName"] as? String == "Hub")
+        precondition(info["LSHasLocalizedDisplayName"] as? Bool == true)
+    }
+
     /// Recurso do Hub ausente no plugin (Review Focus 5): fonte do sistema, SF Symbol no lugar da Lucide, o nome no lugar
     /// do logo, e fica no registro.
     private static func missingResources() {
         Theme.registerFonts(from: nil)
         precondition(!Theme.hasLucide && Theme.resources == nil)
-        precondition(Theme.outfit(13, weight: 400) == nil, "Outfit sem estar empacotada")
         precondition(Log.last?.hasPrefix("recursos: fontes ausentes") == true, "sem aviso no registro: \(Log.last ?? "-")")
         let youtube = TVApps.App(name: "YouTube", link: "https://www.youtube.com")
         precondition(youtube.logo == nil)
@@ -52,9 +100,10 @@ enum SelfTest {
         defer { try? FileManager.default.removeItem(at: empty) }
         Theme.registerFonts(from: empty)
         precondition(!Theme.hasLucide && youtube.logo == nil && Log.last?.hasPrefix("recursos: fontes ausentes") == true)
+        precondition(Theme.menuBarImage(anyOn: true).isTemplate && Theme.menuBarImage(anyOn: false).isTemplate, "sem a Lucide: SF Symbol")
         // Os do .app (o build copia Resources/Bundle para Contents/Resources).
         Theme.registerFonts(from: Bundle.main.resourceURL)
-        precondition(Theme.hasLucide && Theme.outfit(13, weight: 400) != nil, "fontes do .app")
+        precondition(Theme.hasLucide, "fontes do .app")
         precondition(youtube.logo != nil, "logo do YouTube no .app")
     }
 

@@ -108,7 +108,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.greeting).font(Theme.font(20, .semibold))
+                Text(store.greeting).font(Theme.font(15, .bold))
                 Text(store.summary).font(Theme.font(12)).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()
@@ -214,16 +214,14 @@ struct EmptyState: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Icon("house.lodge.fill", size: 30)
-                .foregroundStyle(LinearGradient(colors: [.orange, .pink], startPoint: .top, endPoint: .bottom))
+            Icon("house.wifi", size: 30)
+                .foregroundStyle(Grafite.accent)
             Text("Conecte suas contas").font(Theme.font(14, .semibold))
             Text("Smart Life, Tuya Smart e Positivo para a casa;\nSmartThings para o ar-condicionado.")
                 .font(Theme.font(11.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Conectar", action: settings)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+            GPill(title: "Conectar", action: settings)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)

@@ -99,12 +99,12 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     }
 
     public func makeScreen() -> NSViewController {
-        NSHostingController(rootView: ScreenView().environmentObject(store).environmentObject(shell))
+        NSHostingController(rootView: ScreenView().environmentObject(store).environmentObject(shell).environment(\.colorScheme, .dark).tint(Grafite.accent))
     }
 
     public func makeSettings() -> NSViewController {
         NSHostingController(rootView: SettingsView(back: nil).environmentObject(store).environmentObject(shell)
-            .frame(width: 380).font(Theme.font(13)).background(Theme.room.ignoresSafeArea()))
+            .frame(width: 380).font(Theme.font(13)).background(Theme.room.ignoresSafeArea()).environment(\.colorScheme, .dark).tint(Grafite.accent))
     }
 
     /// hubmac://callback do login do SmartThings, do avulso ou do NeyHub. Só aceita o `state` do login em andamento.
@@ -132,7 +132,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
 
     public func showScreen() {
         if screenWindow == nil {
-            screenWindow = window(makeScreen(), title: "Hub")
+            screenWindow = window(makeScreen(), title: "Domo")
             screenWindow?.setContentSize(NSSize(width: 960, height: 700))
             screenWindow?.center()
         }
@@ -141,7 +141,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
 
     /// Janela de configurações do avulso: o menu do app (`⌘,`) no modo Tela.
     public func showSettings() {
-        if settingsWindow == nil { settingsWindow = window(makeSettings(), title: "Ajustes do Hub") }
+        if settingsWindow == nil { settingsWindow = window(makeSettings(), title: "Ajustes do Domo") }
         bringToFront(settingsWindow)
     }
 
@@ -161,9 +161,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     // MARK: Barra de menus
 
     private func updateIcon() {
-        let image = NSImage(systemSymbolName: store.anyOn ? "house.fill" : "house", accessibilityDescription: "Hub")
-        image?.isTemplate = true
-        statusItem?.button?.image = image
+        statusItem?.button?.image = Theme.menuBarImage(anyOn: store.anyOn)
     }
 
     @objc private func togglePopover() {
@@ -173,7 +171,8 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     func showPopover() {
         guard let button = statusItem?.button, !popover.isShown else { return }
         if popover.contentViewController == nil {
-            let host = NSHostingController(rootView: RootView().environmentObject(store).environmentObject(shell))
+            let host = NSHostingController(rootView: RootView().environmentObject(store).environmentObject(shell).environment(\.colorScheme, .dark).tint(Grafite.accent))
+            popover.appearance = NSAppearance(named: .darkAqua) // só escuro, como o NeyHub
             host.sizingOptions = .preferredContentSize
             popover.contentViewController = host
             popover.behavior = .transient

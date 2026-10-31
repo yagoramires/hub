@@ -37,6 +37,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Hub"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# Nome que aparece (Domo) por idioma; o arquivo continua Hub.app.
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
 # Fontes e logos dos apps da TV: os mesmos que o release põe no .neyplugin.
 ditto Resources/Bundle "$APP/Contents/Resources"
 
