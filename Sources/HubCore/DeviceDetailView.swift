@@ -24,7 +24,7 @@ struct DeviceDetailView: View {
                 .background(alignment: .top) {
                     if device.kind == .light, device.isOn {
                         SoftGlow(color: light, width: 420, height: 360, spread: 90)
-                            .opacity(0.25 + 0.3 * (device.brightness ?? 1)).offset(y: 40)
+                            .opacity(0.18).offset(y: 40)
                     }
                 }
             Scroller {
@@ -465,7 +465,7 @@ struct Panel<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(corner: 20)
+        .card()
     }
 }
 

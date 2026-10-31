@@ -129,10 +129,8 @@ extension HubDevice {
         return "Ligada"
     }
 
-    /// Luz da TV no Hub: a cor do app aberto (ou o coral da TV na tela inicial).
-    func tvLight(_ apps: [TVApps.App]) -> Color {
-        TVApps.app(package: status["app"]?.string, in: apps)?.color ?? Theme.accent(.tv)
-    }
+    /// Luz da TV ligada: o verde do app, qualquer que seja o app aberto.
+    func tvLight(_ apps: [TVApps.App]) -> Color { Grafite.accent }
 }
 
 extension Color {
@@ -207,7 +205,7 @@ struct TVCard: View {
                     ForEach([("arrow.uturn.backward", "Voltar", ATVRemote.Key.back),
                              ("house.fill", "Início", .home),
                              ("playpause.fill", "Tocar ou pausar", .playPause)], id: \.1) { symbol, label, key in
-                        TVKey(device: device, symbol: symbol, label: label, key: key, height: 34, corner: 12)
+                        TVKey(device: device, symbol: symbol, label: label, key: key, height: 34, corner: 8)
                             .frame(width: 34)
                     }
                 }
@@ -377,7 +375,7 @@ struct TVRemoteView: View {
                 }
             }
             .padding(10)
-            .card(Theme.matte.opacity(0.92), corner: 26)
+            .card(Theme.matte)
 
             VolumeSlider(device: device, tint: light, height: 44)
 
@@ -387,7 +385,7 @@ struct TVRemoteView: View {
                 .font(Theme.font(10.5)).foregroundStyle(.secondary)
         }
         .background(alignment: .top) {
-            SoftGlow(color: light, width: 340, height: 220, spread: 70).opacity(0.45).offset(y: -90)
+            SoftGlow(color: light, width: 340, height: 220, spread: 70).opacity(0.18).offset(y: -90)
         }
         .animation(.easeOut(duration: 0.35), value: package)
         .focusable()
@@ -485,7 +483,7 @@ struct TVRemoteView: View {
             .padding(.leading, 8)
             .padding(.trailing, 6)
             .frame(height: 44)
-            .card(Theme.well, edge: typing ? light.opacity(0.7) : nil, corner: 15)
+            .card(Theme.well, edge: typing ? light.opacity(0.7) : nil, corner: 8)
             .animation(.easeOut(duration: 0.15), value: typing)
             if canSearch, !text.isEmpty {
                 Button("Só digitar o texto na TV", action: sendText)

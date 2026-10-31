@@ -154,7 +154,7 @@ struct ScreenView: View {
         if let device = store.devices.first(where: { $0.id == selected }) {
             DeviceDetailView(device: device) { selected = nil }
                 .id(device.id)
-                .card(corner: 26)
+                .card()
         } else {
             VStack(spacing: 10) {
                 Icon("hand.draw", size: 22).foregroundStyle(.secondary)
@@ -163,7 +163,7 @@ struct ScreenView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, minHeight: 220)
-            .card(corner: 26)
+            .card()
         }
     }
 
@@ -223,7 +223,7 @@ struct RoomGlows: View {
 
     /// Gradiente radial (e não blur): a luz se espalha igual na tela e no `--render`.
     private func glow(_ color: Color, on: Bool, at point: CGPoint, size: CGSize) -> some View {
-        Ellipse().fill(RadialGradient(colors: [color.opacity(0.22), color.opacity(0)], center: .center, startRadius: 0,
+        Ellipse().fill(RadialGradient(colors: [color.opacity(0.12), color.opacity(0)], center: .center, startRadius: 0,
                                       endRadius: size.width / 2))
             .scaleEffect(x: 1, y: size.height / size.width)
             .frame(width: size.width, height: size.width)

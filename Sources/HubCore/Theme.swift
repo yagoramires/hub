@@ -2,55 +2,26 @@ import NeyKit
 import SwiftUI
 
 enum Theme {
-    static let tileCorner: CGFloat = 24
+    static let tileCorner = Grafite.cardRadius
 
-    /// Fundo do popover: um quarto escuro à noite, onde cada aparelho ligado acende a própria luz.
-    static let room = Color(light: 0xF1F1F4, dark: 0x19191C)
-    /// Aparelho desligado: objeto fosco, sem brilho.
-    static let matte = Color(light: 0xFFFFFF, dark: 0x232327)
-    static let well = Color.primary.opacity(0.06)
+    /// Fundo e cartões do Grafite do NeyHub; o aparelho ligado acende em halo (`glow`).
+    static let room = Grafite.bg
+    static let matte = Grafite.card
+    static let well = Color.white.opacity(0.06)
 
-    /// Fonte do Hub: Outfit (variável, embutida em Resources/Fonts) em tudo, textos e números.
-    static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        let value: CGFloat = switch weight {
-        case .ultraLight: 200
-        case .thin: 100
-        case .light: 300
-        case .medium: 500
-        case .semibold: 600
-        case .bold: 700
-        case .heavy: 800
-        case .black: 900
-        default: 400
-        }
-        let key = "\(size)-\(value)"
-        if let cached = fonts[key] { return cached }
-        // Eixo de peso da fonte variável pela etiqueta OpenType 'wght'.
-        let font = outfit(size, weight: value).map { Font($0) } ?? .system(size: size, weight: weight)
-        fonts[key] = font
-        return font
-    }
+    /// Fonte do sistema, como o resto do NeyHub.
+    static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight) }
 
-    /// A Outfit registrada no peso pedido; nil sem ela (o macOS devolveria outra família no lugar).
-    static func outfit(_ size: CGFloat, weight: CGFloat) -> NSFont? {
-        let variation = NSFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
-        let descriptor = NSFontDescriptor(fontAttributes: [.family: "Outfit", variation: [0x7767_6874: weight]])
-        return NSFont(descriptor: descriptor, size: size).flatMap { $0.familyName == "Outfit" ? $0 : nil }
-    }
-
-    /// Fontes já montadas: cada texto pedia uma NSFont nova a cada desenho.
-    private static var fonts: [String: Font] = [:]
-
-    /// Números grandes: a mesma Outfit, com algarismos de largura fixa onde for preciso (monospacedDigit).
+    /// Números grandes (monospacedDigit onde for preciso).
     static func number(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font { font(size, weight) }
 
-    /// Pasta com `Fonts/` e `AppLogos/`: a do .app no avulso, `<Hub>.neyplugin/Resources` no NeyHub. nil = nada empacotado.
+    /// Pasta com `Fonts/` (ícones Lucide) e `AppLogos/`: a do .app no avulso, `<Hub>.neyplugin/Resources` no NeyHub. nil = nada empacotado.
     private(set) static var resources: URL?
     /// Lucide registrada: sem ela os ícones caem no SF Symbol (o código da Lucide sairia como um quadrado vazio).
     private(set) static var hasLucide = false
 
-    /// Registra as fontes de `<resources>/Fonts` (Outfit e os ícones Lucide) só para este processo. Sem pasta ou sem
-    /// fonte: fonte do sistema, SF Symbols e o nome no lugar do logo dos apps da TV, e fica no registro.
+    /// Registra as fontes de `<resources>/Fonts` (os ícones Lucide) só para este processo. Sem pasta ou sem
+    /// fonte: SF Symbols e o nome no lugar do logo dos apps da TV, e fica no registro.
     static func registerFonts(from resources: URL?) {
         self.resources = resources
         let urls = resources.flatMap {
@@ -58,9 +29,8 @@ enum Theme {
         }?.filter { $0.pathExtension == "ttf" } ?? []
         CTFontManagerRegisterFontURLs(urls as CFArray, .process, true, nil)
         hasLucide = urls.contains { $0.lastPathComponent == "lucide.ttf" }
-        fonts = [:]
-        if !hasLucide || !urls.contains(where: { $0.lastPathComponent == "Outfit.ttf" }) {
-            debugLog("recursos: fontes ausentes em \(resources?.path ?? "nenhuma pasta"); usando a fonte do sistema e ícones genéricos")
+        if !hasLucide {
+            debugLog("recursos: fontes ausentes em \(resources?.path ?? "nenhuma pasta"); usando ícones genéricos")
         }
     }
 
@@ -109,10 +79,10 @@ enum Theme {
     static func accent(_ kind: HubDevice.Kind) -> Color {
         switch kind {
         case .airConditioner: Color(red: 0.25, green: 0.70, blue: 1.00)
-        case .tv: Color(red: 0.96, green: 0.36, blue: 0.40)
+        case .tv: Grafite.accent
         case .light: Color(red: 1.00, green: 0.71, blue: 0.20)
         case .plug: Color(red: 0.25, green: 0.82, blue: 0.55)
-        case .feeder: Color(red: 1.00, green: 0.45, blue: 0.53)
+        case .feeder: Grafite.accent
         case .remote: Color(red: 0.58, green: 0.50, blue: 1.00)
         case .other: Color(red: 0.45, green: 0.62, blue: 1.00)
         }
@@ -314,24 +284,30 @@ extension Color {
 }
 
 extension View {
-    /// Luz que o aparelho ligado espalha pelo fundo, por trás do cartão.
-    func glow(_ color: Color, on: Bool = true, radius: CGFloat = 34, opacity: Double = 0.45) -> some View {
-        background {
+    /// Halo do aparelho ligado: o cartão acende por dentro (canto de cima), a borda pega a cor e a luz vaza por trás.
+    /// `radius`/`opacity` ficaram dos chamadores antigos; a intensidade é a mesma em todo aparelho (aprovada no mockup).
+    func glow(_ color: Color, on: Bool = true, radius: CGFloat = 0, opacity: Double = 0) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous)
+        return overlay {
             if on {
-                RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous)
-                    .fill(color)
-                    .blur(radius: radius)
-                    .opacity(opacity)
-                    .allowsHitTesting(false)
+                ZStack {
+                    shape.fill(RadialGradient(colors: [color.opacity(0.13), color.opacity(0)], center: .topLeading,
+                                              startRadius: 0, endRadius: 240)).blendMode(.plusLighter)
+                    shape.strokeBorder(color.opacity(0.30), lineWidth: 1)
+                }
+                .allowsHitTesting(false)
             }
+        }
+        .background {
+            if on { shape.fill(Theme.matte).shadow(color: color.opacity(0.38), radius: 14, y: 8).allowsHitTesting(false) }
         }
     }
 
-    /// Cartão fosco do Hub, com o fio de luz em cima e a borda na cor do aparelho quando ligado.
+    /// Cartão grafite do NeyKit, com a borda na cor do aparelho quando pedida.
     func card(_ fill: Color = Theme.matte, edge: Color? = nil, corner: CGFloat = Theme.tileCorner) -> some View {
         let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
         return background(shape.fill(fill))
-            .overlay(shape.strokeBorder(edge ?? Color.primary.opacity(0.07), lineWidth: 1))
+            .overlay(shape.strokeBorder(edge ?? Grafite.cardBorder, lineWidth: 1))
             .clipShape(shape)
     }
 }

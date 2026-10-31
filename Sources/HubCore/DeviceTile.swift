@@ -67,7 +67,7 @@ struct DeviceTile: View {
             }
         }
         .card(device.kind == .plug && on ? Color(light: 0xECF8F1, dark: 0x1F2522) : Theme.matte,
-              edge: on ? (lit ? fill.glow : accent).opacity(0.35) : nil, corner: 18)
+              edge: on ? (lit ? fill.glow : accent).opacity(0.35) : nil)
         .glow(fill.glow, on: lit, radius: 22, opacity: 0.25 + 0.3 * (device.brightness ?? 1))
         .opacity(device.online ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -142,7 +142,7 @@ struct FeederCard: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 56)
-        .card(edge: feeding ? accent.opacity(0.5) : nil, corner: 18)
+        .card(edge: feeding ? accent.opacity(0.5) : nil)
         .glow(accent, on: feeding, radius: 22, opacity: 0.5)
         .opacity(device.online ? 1 : 0.5)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
