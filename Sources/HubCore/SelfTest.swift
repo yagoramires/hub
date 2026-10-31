@@ -14,6 +14,7 @@ enum SelfTest {
         defer { try? FileManager.default.removeItem(at: dir) }
         // Antes de qualquer fonte registrada no processo: sem recursos não pode quebrar.
         missingResources()
+        icons()
         protocols()
         mealPlan()
         credentialsFolder(dir)
@@ -37,6 +38,15 @@ enum SelfTest {
         precondition(LoginRoute.decide(hosted: true, neyHub: nil, started: false) == .wait)
     }
 
+    /// Lucide do .app: todo ícone do mapa existe na fonte (código errado vira quadrado vazio), inclusive o house-wifi.
+    private static func icons() {
+        precondition(Theme.hasLucide)
+        for (name, code) in Icon.lucideCodes { precondition(Theme.lucideHasGlyph(code), "sem glifo na Lucide: \(name)") }
+        precondition(Icon.lucideCodes["house.wifi"] == 0xe63c)
+        let image = Theme.menuBarImage(anyOn: false)
+        precondition(image.isTemplate && image.size == NSSize(width: 18, height: 18))
+    }
+
     /// Recurso do Hub ausente no plugin (Review Focus 5): fonte do sistema, SF Symbol no lugar da Lucide, o nome no lugar
     /// do logo, e fica no registro.
     private static func missingResources() {
@@ -52,6 +62,7 @@ enum SelfTest {
         defer { try? FileManager.default.removeItem(at: empty) }
         Theme.registerFonts(from: empty)
         precondition(!Theme.hasLucide && youtube.logo == nil && Log.last?.hasPrefix("recursos: fontes ausentes") == true)
+        precondition(Theme.menuBarImage(anyOn: true).isTemplate && Theme.menuBarImage(anyOn: false).isTemplate, "sem a Lucide: SF Symbol")
         // Os do .app (o build copia Resources/Bundle para Contents/Resources).
         Theme.registerFonts(from: Bundle.main.resourceURL)
         precondition(Theme.hasLucide && Theme.outfit(13, weight: 400) != nil, "fontes do .app")

@@ -161,9 +161,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     // MARK: Barra de menus
 
     private func updateIcon() {
-        let image = NSImage(systemSymbolName: store.anyOn ? "house.fill" : "house", accessibilityDescription: "Hub")
-        image?.isTemplate = true
-        statusItem?.button?.image = image
+        statusItem?.button?.image = Theme.menuBarImage(anyOn: store.anyOn)
     }
 
     @objc private func togglePopover() {
