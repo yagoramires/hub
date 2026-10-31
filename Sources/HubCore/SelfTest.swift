@@ -16,6 +16,7 @@ enum SelfTest {
         missingResources()
         icons()
         grafite()
+        tvKeys()
         protocols()
         mealPlan()
         credentialsFolder(dir)
@@ -61,6 +62,14 @@ enum SelfTest {
         red.status["colour_data_v2"] = .string(#"{"h":0,"s":1000,"v":1000}"#)
         let c = NSColor(Theme.lightFill(red).glow).usingColorSpace(.sRGB)!
         precondition(c.redComponent > 0.9 && c.greenComponent < 0.3 && c.blueComponent < 0.3, "luz vermelha escolhida continua vermelha")
+    }
+
+    /// Botões novos do controle: códigos KEYCODE_* do Android.
+    private static func tvKeys() {
+        precondition(ATVRemote.Key.channelUp.rawValue == 166 && ATVRemote.Key.channelDown.rawValue == 167)
+        precondition(ATVRemote.Key.info.rawValue == 165 && ATVRemote.Key.captions.rawValue == 175 && ATVRemote.Key.assist.rawValue == 219)
+        precondition(ATVRemote.Key.mediaPrevious.rawValue == 88 && ATVRemote.Key.mediaNext.rawValue == 87)
+        precondition(ATVRemote.Key.mediaRewind.rawValue == 89 && ATVRemote.Key.mediaFastForward.rawValue == 90 && ATVRemote.Key.menu.rawValue == 82)
     }
 
     /// Recurso do Hub ausente no plugin (Review Focus 5): fonte do sistema, SF Symbol no lugar da Lucide, o nome no lugar

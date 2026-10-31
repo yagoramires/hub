@@ -434,6 +434,8 @@ package final class ATVRemote {
         case home = 3, back = 4, up = 19, down = 20, left = 21, right = 22, center = 23
         case volumeUp = 24, volumeDown = 25, power = 26, playPause = 85, mute = 164
         case settings = 176, input = 178, delete = 67
+        case menu = 82, info = 165, captions = 175, assist = 219, channelUp = 166, channelDown = 167
+        case mediaPrevious = 88, mediaNext = 87, mediaRewind = 89, mediaFastForward = 90
     }
 
     let host: String

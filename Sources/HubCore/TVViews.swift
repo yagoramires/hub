@@ -349,6 +349,13 @@ struct TVRemoteView: View {
             appGrid
 
             VStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    key("power", "Ligar ou desligar a TV", .power)
+                    key("rectangle.connected.to.line.below", "Entrada", .input)
+                    key("mic", "Assistente", .assist)
+                    key("line.3.horizontal", "Menu", .menu)
+                    key("gearshape.fill", "Ajustes da TV", .settings)
+                }
                 Picker("Direcional", selection: Binding(get: { usesPad }, set: { pad in
                     usesPad = pad
                     TVApps.userDefaults.set(pad, forKey: "tvTouchpad")
@@ -359,18 +366,30 @@ struct TVRemoteView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
-                if usesPad {
-                    Touchpad(tint: light) { store.tvKey(device, $0) }
-                } else {
-                    dpad
+                // VOL e CH dos lados das setas (ou do touchpad), como num controle de verdade.
+                HStack(spacing: 10) {
+                    rocker("VOL", up: ("plus", "Aumentar o volume", .volumeUp), down: ("minus", "Diminuir o volume", .volumeDown))
+                    if usesPad {
+                        Touchpad(tint: light) { store.tvKey(device, $0) }
+                    } else {
+                        dpad.frame(maxWidth: .infinity)
+                    }
+                    rocker("CH", up: ("chevron.up", "Próximo canal", .channelUp), down: ("chevron.down", "Canal anterior", .channelDown))
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     key("arrow.uturn.backward", "Voltar", .back)
                     key("house.fill", "Início", .home)
-                    key("playpause.fill", "Tocar ou pausar", .playPause)
-                    key("rectangle.connected.to.line.below", "Entrada", .input)
-                    key("gearshape.fill", "Ajustes da TV", .settings)
+                    key("info.circle", "Informações", .info)
+                    key("captions.bubble", "Legendas", .captions)
+                    key("speaker.slash.fill", "Sem som", .mute)
+                }
+                HStack(spacing: 6) {
+                    key("backward.end.fill", "Anterior", .mediaPrevious)
+                    key("backward.fill", "Voltar a fita", .mediaRewind)
+                    TVKey(device: device, symbol: "playpause.fill", label: "Tocar ou pausar", key: .playPause, filled: true)
+                    key("forward.fill", "Avançar", .mediaFastForward)
+                    key("forward.end.fill", "Próximo", .mediaNext)
                 }
             }
             .padding(10)
@@ -415,8 +434,7 @@ struct TVRemoteView: View {
                     Button { store.tvLaunch(device, app.link) } label: {
                         AppLogo(app: app, corner: 18)
                             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .strokeBorder(open ? app.color : .clear, lineWidth: 2).padding(-4))
-                            .shadow(color: open ? app.color.opacity(0.5) : .clear, radius: 12, y: 4)
+                                .strokeBorder(open ? Grafite.accent : .clear, lineWidth: 2).padding(-4))
                             .scaleEffect(open ? 1.04 : 1)
                     }
                     .buttonStyle(PressStyle())
@@ -498,8 +516,8 @@ struct TVRemoteView: View {
 
     private var dpad: some View {
         ZStack {
-            Circle().fill(Color(light: 0xE6E6EB, dark: 0x2A2A2F)).frame(width: 236, height: 236)
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
+            Circle().fill(Theme.well).frame(width: 196, height: 196)
+                .overlay(Circle().strokeBorder(Grafite.cardBorder))
             VStack(spacing: 0) {
                 arrow("chevron.up", .up)
                 HStack(spacing: 0) {
@@ -507,10 +525,9 @@ struct TVRemoteView: View {
                     Button { store.tvKey(device, .center) } label: {
                         Text("OK")
                             .font(Theme.number(15, .bold))
-                            .foregroundStyle(light.ink)
-                            .frame(width: 80, height: 80)
-                            .background(Circle().fill(light))
-                            .shadow(color: light.opacity(0.45), radius: 12)
+                            .foregroundStyle(Grafite.strong)
+                            .frame(width: 66, height: 66)
+                            .background(Circle().fill(Color(red: 0.165, green: 0.176, blue: 0.2)))
                     }
                     .buttonStyle(PressStyle())
                     arrow("chevron.right", .right)
@@ -518,13 +535,34 @@ struct TVRemoteView: View {
                 arrow("chevron.down", .down)
             }
         }
-        .frame(height: 250)
+        .frame(height: 200)
+    }
+
+    /// Botão comprido de dois lados (VOL, CH).
+    private func rocker(_ title: String, up: (String, String, ATVRemote.Key), down: (String, String, ATVRemote.Key)) -> some View {
+        VStack(spacing: 0) {
+            ForEach([up], id: \.1) { rockerKey($0) }
+            Text(title).font(Theme.font(9, .bold)).tracking(1).foregroundStyle(Grafite.label)
+            ForEach([down], id: \.1) { rockerKey($0) }
+        }
+        .frame(width: 42, height: 170)
+        .background(Capsule().fill(Theme.well))
+        .overlay(Capsule().strokeBorder(Grafite.cardBorder))
+    }
+
+    private func rockerKey(_ item: (String, String, ATVRemote.Key)) -> some View {
+        Button { store.tvKey(device, item.2) } label: {
+            Icon(item.0, size: 13).foregroundStyle(Grafite.ghostText).frame(width: 42, height: 64).contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .help(item.1)
+        .accessibilityLabel(item.1)
     }
 
     private func arrow(_ symbol: String, _ key: ATVRemote.Key) -> some View {
         Button { store.tvKey(device, key) } label: {
             Icon(symbol, size: 17)
-                .frame(width: 64, height: 64)
+                .frame(width: 54, height: 54)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
@@ -542,14 +580,18 @@ struct TVKey: View {
     let symbol: String
     let label: String
     let key: ATVRemote.Key
-    var height: CGFloat = 46
-    var corner: CGFloat = 15
+    var height: CGFloat = 32
+    var corner: CGFloat = 8
+    /// Tecla principal (play/pause): verde do app.
+    var filled = false
 
     var body: some View {
         Button { store.tvKey(device, key) } label: {
-            Icon(symbol, size: 14)
+            Icon(symbol, size: 13)
+                .foregroundStyle(filled ? Grafite.onAccent : Grafite.ghostText)
                 .frame(maxWidth: .infinity, minHeight: height)
-                .background(RoundedRectangle(cornerRadius: corner, style: .continuous).fill(Theme.well))
+                .background(RoundedRectangle(cornerRadius: corner, style: .continuous).fill(filled ? Grafite.accent : Theme.well))
+                .overlay(RoundedRectangle(cornerRadius: corner, style: .continuous).strokeBorder(filled ? .clear : Grafite.cardBorder, lineWidth: 1))
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
