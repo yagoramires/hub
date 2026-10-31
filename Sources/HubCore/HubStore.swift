@@ -404,7 +404,7 @@ package final class HubStore: ObservableObject {
         tvPairing = TVPairing(name: name, host: host, message: "Conectando na TV…")
         Task {
             do {
-                try await session.start(clientName: "Hub do Mac")
+                try await session.start(clientName: "Domo no Mac")
                 tvPairing?.waitingCode = true
                 tvPairing?.message = "Digite o código que apareceu na TV."
             } catch {

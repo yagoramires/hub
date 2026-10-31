@@ -745,7 +745,7 @@ struct TVSettingsPanel: View {
                             }
                         }
                     }
-                    TextField("Nome no Hub (opcional, ex.: TV da sala)", text: $name)
+                    TextField("Nome no Domo (opcional, ex.: TV da sala)", text: $name)
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
                 }

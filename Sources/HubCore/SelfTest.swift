@@ -17,6 +17,7 @@ enum SelfTest {
         icons()
         grafite()
         tvKeys()
+        displayName()
         protocols()
         mealPlan()
         credentialsFolder(dir)
@@ -70,6 +71,20 @@ enum SelfTest {
         precondition(ATVRemote.Key.info.rawValue == 165 && ATVRemote.Key.captions.rawValue == 175 && ATVRemote.Key.assist.rawValue == 219)
         precondition(ATVRemote.Key.mediaPrevious.rawValue == 88 && ATVRemote.Key.mediaNext.rawValue == 87)
         precondition(ATVRemote.Key.mediaRewind.rawValue == 89 && ATVRemote.Key.mediaFastForward.rawValue == 90 && ATVRemote.Key.menu.rawValue == 82)
+    }
+
+    /// O nome que aparece é Domo; arquivos, assets e ids seguem "Hub" (o NeyHub e o atualizador procuram por eles).
+    private static func displayName() {
+        let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources")
+        let plugin = try! JSONSerialization.jsonObject(with: Data(contentsOf: resources.appendingPathComponent("plugin.json"))) as! [String: Any]
+        precondition(plugin["id"] as? String == "local.hub" && plugin["name"] as? String == "Hub" && plugin["displayName"] as? String == "Domo")
+        for lang in ["pt-BR", "en"] {
+            let strings = NSDictionary(contentsOf: resources.appendingPathComponent("\(lang).lproj/InfoPlist.strings"))
+            precondition(strings?["CFBundleDisplayName"] as? String == "Domo" && strings?["CFBundleName"] as? String == "Domo", lang)
+        }
+        let info = NSDictionary(contentsOf: resources.appendingPathComponent("Info.plist"))!
+        precondition(info["CFBundleIdentifier"] as? String == "local.hub" && info["CFBundleName"] as? String == "Hub")
+        precondition(info["LSHasLocalizedDisplayName"] as? Bool == true)
     }
 
     /// Recurso do Hub ausente no plugin (Review Focus 5): fonte do sistema, SF Symbol no lugar da Lucide, o nome no lugar

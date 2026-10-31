@@ -132,7 +132,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
 
     public func showScreen() {
         if screenWindow == nil {
-            screenWindow = window(makeScreen(), title: "Hub")
+            screenWindow = window(makeScreen(), title: "Domo")
             screenWindow?.setContentSize(NSSize(width: 960, height: 700))
             screenWindow?.center()
         }
@@ -141,7 +141,7 @@ public final class HubApp: NSObject, NSPopoverDelegate {
 
     /// Janela de configurações do avulso: o menu do app (`⌘,`) no modo Tela.
     public func showSettings() {
-        if settingsWindow == nil { settingsWindow = window(makeSettings(), title: "Ajustes do Hub") }
+        if settingsWindow == nil { settingsWindow = window(makeSettings(), title: "Ajustes do Domo") }
         bringToFront(settingsWindow)
     }
 

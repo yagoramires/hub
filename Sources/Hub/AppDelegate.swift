@@ -18,7 +18,7 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // O hubmac:// que veio na abertura já foi repassado ao NeyHub (getURL) antes deste aviso.
-        if HubCheck.isHosted(id: "local.hub") && HubCheck.leaveForHub(id: "local.hub", name: "Hub") { return }
+        if HubCheck.isHosted(id: "local.hub") && HubCheck.leaveForHub(id: "local.hub", name: "Domo") { return }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
         let hub = HubApp(defaults: .standard, hosted: false, version: version, resources: Bundle.main.resourceURL)
         hub.start()
@@ -28,6 +28,7 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
         open(pending)
         pending = []
 
+        // "Hub": nome do .app e do asset Hub-<v>.zip, que as versões já instaladas procuram.
         let updater = Updater(name: "Hub", repo: "yagoramires/hub", id: "local.hub")
         hub.updateReady = updater.staged != nil
         updater.onChange = { [weak hub, weak updater] in hub?.updateReady = updater?.staged != nil }
@@ -36,7 +37,7 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
         self.updater = updater
         // Toda abertura: mostra as novidades uma vez e limpa um preparado velho.
         if let notes = Updater.notesAfterUpdate(id: "local.hub", current: version) {
-            WhatsNew.show(name: "Hub", version: version, notes: notes)
+            WhatsNew.show(name: "Domo", version: version, notes: notes)
         }
     }
 
@@ -79,7 +80,7 @@ final class HubAppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Ajustes…", action: #selector(showSettings), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Sair do Hub", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Sair do Domo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let item = NSMenuItem()
         item.submenu = appMenu
         // Editar: sem ele ⌘C/⌘V/⌘Z não chegam aos campos de texto (código de usuário, Client ID, busca na TV).
