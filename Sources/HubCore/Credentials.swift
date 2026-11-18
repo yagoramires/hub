@@ -10,7 +10,12 @@ package struct Credentials: Codable, Equatable {
     /// App OAuth criado pelo SmartThings CLI, guardado antes do primeiro login.
     var smartThingsApp: SmartThingsApp?
     /// TVs com Google TV / Android TV já pareadas (o pareamento fica no certificado do Hub).
+    /// Opcional só para ler arquivos de antes de existir a TV (a chave não vem neles); o resto usa `pairedTVs`.
     package var androidTVs: [AndroidTVConfig]?
+    package var pairedTVs: [AndroidTVConfig] {
+        get { androidTVs ?? [] }
+        set { androidTVs = newValue }
+    }
 
     static let real = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Hub/credentials.json")

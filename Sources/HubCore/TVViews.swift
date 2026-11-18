@@ -688,7 +688,7 @@ struct TVSettingsPanel: View {
 
     var body: some View {
         Panel(title: "TV · Google TV / Android TV") {
-            ForEach(store.credentials.androidTVs ?? [], id: \.host) { tv in
+            ForEach(store.credentials.pairedTVs, id: \.host) { tv in
                 HStack {
                     Icon("checkmark.circle.fill").foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 0) {

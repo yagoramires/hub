@@ -6,7 +6,7 @@ import HubCore
 enum DebugCLI {
     static func run(_ arguments: [String]) async {
         if arguments.first == "--render" { return HubApp.render(arguments, resources: Bundle.main.resourceURL) }
-        if arguments.first == "--atv-launch", arguments.count > 1, let tv = Credentials.load().androidTVs?.first {
+        if arguments.first == "--atv-launch", arguments.count > 1, let tv = Credentials.load().pairedTVs.first {
             let remote = ATVRemote(host: tv.host)
             remote.start()
             remote.launch(arguments[1])
