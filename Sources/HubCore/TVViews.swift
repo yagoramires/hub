@@ -223,13 +223,13 @@ struct VolumeSlider: View {
     let device: HubDevice
     let tint: Color
     var height: CGFloat = 34
-    @ViewState private var dragging: Double? = nil
+    @ViewState private var hold = HeldValue()
 
     var body: some View {
         let maximum = max(device.status["volume_max"]?.number ?? 100, 1)
         let level = device.status["volume"]?.number ?? 0
         let muted = device.status["muted"]?.bool == true
-        let fraction = dragging ?? level / maximum
+        let fraction = hold.current ?? level / maximum
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Rectangle().fill(Theme.well)
@@ -252,16 +252,12 @@ struct VolumeSlider: View {
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { drag in
                     guard drag.startLocation.x > height else { return }
-                    dragging = min(max(drag.location.x / geometry.size.width, 0), 1)
+                    hold.dragging = min(max(drag.location.x / geometry.size.width, 0), 1)
                 }
                 .onEnded { drag in
                     // Toque no alto-falante tira/volta o som; o resto da barra é o volume.
                     if drag.startLocation.x <= height, abs(drag.translation.width) < 4 { return store.tvKey(device, .mute) }
-                    guard let dragging else { return }
-                    store.tvSetVolume(device, to: Int((dragging * maximum).rounded()))
-                    let sent = dragging
-                    // Um toque novo nesse meio tempo tem o próprio valor; não apaga.
-                    Task { try? await Task.sleep(for: .seconds(2)); if self.dragging == sent { self.dragging = nil } }
+                    if let released = $hold.release(for: 2) { store.tvSetVolume(device, to: Int((released * maximum).rounded())) }
                 })
         }
         .frame(height: height)

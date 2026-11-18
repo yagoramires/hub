@@ -301,6 +301,28 @@ struct LightControls: View {
     }
 }
 
+/// Valor de uma barra: o do arraste e, depois de soltar, o que foi mandado até a nuvem confirmar (senão a barra pula de
+/// volta para o valor antigo).
+struct HeldValue {
+    var dragging: Double?
+    fileprivate var held: Double?
+    var current: Double? { dragging ?? held }
+}
+
+extension Binding where Value == HeldValue {
+    /// Solta o arraste e devolve o valor. Soltar de novo antes do prazo tem o próprio prazo, o primeiro não apaga.
+    @MainActor func release(for seconds: Double = 4) -> Double? {
+        guard let sent = wrappedValue.dragging else { return nil }
+        wrappedValue.held = sent
+        wrappedValue.dragging = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(seconds))
+            if wrappedValue.held == sent { wrappedValue.held = nil }
+        }
+        return sent
+    }
+}
+
 /// Barra vertical: arrastar ou clicar escolhe o valor (0 embaixo, 1 em cima). Só manda o comando
 /// ao soltar e segura o valor até a nuvem confirmar.
 struct VerticalBar: View {
@@ -318,11 +340,10 @@ struct VerticalBar: View {
     var bottom: String?
     let commit: (Double) -> Void
 
-    @ViewState private var dragging: Double? = nil
-    @ViewState private var held: Double? = nil
+    @ViewState private var hold = HeldValue()
 
     var body: some View {
-        let fraction = dragging ?? held ?? value
+        let fraction = hold.current ?? value
         GeometryReader { geometry in
             let height = geometry.size.height
             ZStack(alignment: .bottom) {
@@ -364,13 +385,9 @@ struct VerticalBar: View {
             .overlay(RoundedRectangle(cornerRadius: 36, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { drag in dragging = min(max(1 - drag.location.y / height, 0), 1) }
+                .onChanged { drag in hold.dragging = min(max(1 - drag.location.y / height, 0), 1) }
                 .onEnded { _ in
-                    guard let dragging else { return }
-                    commit(dragging)
-                    held = dragging
-                    self.dragging = nil
-                    Task { try? await Task.sleep(for: .seconds(4)); held = nil }
+                    if let released = $hold.release() { commit(released) }
                 })
         }
         .accessibilityElement()
@@ -496,13 +513,12 @@ struct SpecSlider: View {
     var tint: Color = Grafite.accent
     let commit: (Double) -> Void
 
-    @ViewState private var dragging: Double? = nil
-    @ViewState private var held: Double? = nil
+    @ViewState private var hold = HeldValue()
 
     private var span: Double { max(spec.max - spec.min, 1) }
 
     var body: some View {
-        let fraction = dragging ?? held ?? min(max((raw - spec.min) / span, 0), 1)
+        let fraction = hold.current ?? min(max((raw - spec.min) / span, 0), 1)
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.primary.opacity(0.08))
@@ -523,15 +539,11 @@ struct SpecSlider: View {
             .contentShape(Capsule())
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { value in dragging = min(max(value.location.x / geometry.size.width, 0), 1) }
+                    .onChanged { value in hold.dragging = min(max(value.location.x / geometry.size.width, 0), 1) }
                     .onEnded { _ in
-                        guard let dragging else { return }
-                        let raw = ((spec.min + dragging * span) / spec.step).rounded() * spec.step
+                        guard let released = $hold.release() else { return }
+                        let raw = ((spec.min + released * span) / spec.step).rounded() * spec.step
                         commit(min(max(raw, spec.min), spec.max))
-                        held = dragging
-                        self.dragging = nil
-                        // Segura o valor até a nuvem confirmar, para a barra não pular de volta.
-                        Task { try? await Task.sleep(for: .seconds(4)); held = nil }
                     }
             )
         }
