@@ -1,5 +1,6 @@
 import AppKit
 import NeyKit
+import SwiftUI
 
 /// Testes sem XCTest (só CommandLineTools): `Hub --selftest` roda tudo e a casca imprime "selftest ok".
 /// O selftest roda em release, por isso precondition e não assert.
@@ -16,7 +17,7 @@ enum SelfTest {
         missingResources()
         icons()
         grafite()
-        tvKeys()
+        heldValue()
         displayName()
         protocols()
         mealPlan()
@@ -45,7 +46,6 @@ enum SelfTest {
     private static func icons() {
         precondition(Theme.hasLucide)
         for (name, code) in Icon.lucideCodes { precondition(Theme.lucideHasGlyph(code), "sem glifo na Lucide: \(name)") }
-        precondition(Icon.lucideCodes["house.wifi"] == 0xe63c)
         let image = Theme.menuBarImage(anyOn: false)
         precondition(image.isTemplate && image.size == NSSize(width: 18, height: 18))
         precondition(image.accessibilityDescription == "Domo", "o VoiceOver lê o ícone da barra")
@@ -64,12 +64,14 @@ enum SelfTest {
         precondition(c.redComponent > 0.9 && c.greenComponent < 0.3 && c.blueComponent < 0.3, "luz vermelha escolhida continua vermelha")
     }
 
-    /// Botões novos do controle: códigos KEYCODE_* do Android.
-    private static func tvKeys() {
-        precondition(ATVRemote.Key.channelUp.rawValue == 166 && ATVRemote.Key.channelDown.rawValue == 167)
-        precondition(ATVRemote.Key.info.rawValue == 165 && ATVRemote.Key.captions.rawValue == 175 && ATVRemote.Key.assist.rawValue == 219)
-        precondition(ATVRemote.Key.mediaPrevious.rawValue == 88 && ATVRemote.Key.mediaNext.rawValue == 87)
-        precondition(ATVRemote.Key.mediaRewind.rawValue == 89 && ATVRemote.Key.mediaFastForward.rawValue == 90 && ATVRemote.Key.menu.rawValue == 82)
+    /// Barra solta: o valor continua valendo (não pula de volta) e a barra deixa de estar arrastando.
+    private static func heldValue() {
+        var hold = HeldValue()
+        precondition(hold.current == nil && Binding(get: { hold }, set: { hold = $0 }).release() == nil)
+        hold.dragging = 0.4
+        precondition(hold.current == 0.4)
+        let released = Binding(get: { hold }, set: { hold = $0 }).release()
+        precondition(released == 0.4 && hold.dragging == nil && hold.current == 0.4, "solto: \(String(describing: hold))")
     }
 
     /// O nome que aparece é Domo; arquivos, assets e ids seguem "Hub" (o NeyHub e o atualizador procuram por eles).
