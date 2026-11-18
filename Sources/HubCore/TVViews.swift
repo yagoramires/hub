@@ -9,7 +9,6 @@ enum TVApps {
 
         var color: Color {
             if let known = TVApps.colors[name] { return Color(hex: known) }
-            // App adicionado pelo usuário: cor estável a partir do nome.
             let hue = Double(name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360
             return Color(hue: hue, saturation: 0.6, brightness: 0.75)
         }
@@ -364,7 +363,6 @@ struct TVRemoteView: View {
                 .background(Grafite.card, in: RoundedRectangle(cornerRadius: 9))
                 .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Grafite.border, lineWidth: 1))
 
-                // VOL e CH dos lados das setas (ou do touchpad), como num controle de verdade.
                 HStack(spacing: 10) {
                     rocker("VOL", up: ("plus", "Aumentar o volume", .volumeUp), down: ("minus", "Diminuir o volume", .volumeDown))
                     if usesPad {
@@ -612,7 +610,6 @@ struct Touchpad: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(light: 0xE6E6EB, dark: 0x2A2A2F))
             Canvas { canvas, size in
-                // Textura de pontinhos, como a de um trackpad.
                 for x in stride(from: 7.0, to: size.width, by: 14) {
                     for y in stride(from: 7.0, to: size.height, by: 14) {
                         canvas.fill(Path(ellipseIn: CGRect(x: x - 0.8, y: y - 0.8, width: 1.6, height: 1.6)), with: .color(.primary.opacity(0.12)))

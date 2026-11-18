@@ -53,7 +53,6 @@ public final class HubApp: NSObject, NSPopoverDelegate {
     }
 
     public func start() {
-        // Ícone cheio quando tem alguma coisa ligada.
         watch = store.$devices.receive(on: RunLoop.main).sink { [weak self] _ in self?.updateIcon() }
         debugLog("iniciou\(hosted ? " no NeyHub" : "") · Hub \(shell.state.version) · macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         Task { @MainActor in
