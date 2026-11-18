@@ -93,12 +93,12 @@ package final class HubStore: ObservableObject {
             return client
         }
         // TVs ficam conectadas o tempo todo (a própria TV avisa quando liga, desliga ou muda o volume).
-        let wanted = Set((credentials.androidTVs ?? []).map(\.host))
+        let wanted = Set(credentials.pairedTVs.map(\.host))
         for (host, remote) in tvs where !wanted.contains(host) {
             remote.stop()
             tvs[host] = nil
         }
-        for config in credentials.androidTVs ?? [] where tvs[config.host] == nil {
+        for config in credentials.pairedTVs where tvs[config.host] == nil {
             let remote = ATVRemote(host: config.host)
             remote.onChange = { [weak self] in self?.updateTVs() }
             tvs[config.host] = remote
@@ -107,7 +107,7 @@ package final class HubStore: ObservableObject {
     }
 
     private func tvDevices() -> [HubDevice] {
-        (credentials.androidTVs ?? []).compactMap { config in
+        credentials.pairedTVs.compactMap { config in
             guard let remote = tvs[config.host] else { return nil }
             var device = HubDevice(id: "atv-\(config.host)", name: config.name, source: .androidTV(host: config.host),
                                    category: "tv", kind: .tv, online: remote.connected)
@@ -123,12 +123,13 @@ package final class HubStore: ObservableObject {
         }
     }
 
+    private func sortedForDisplay(_ list: [HubDevice]) -> [HubDevice] {
+        list.sorted { ($0.kind, $0.name.localizedLowercase) < ($1.kind, $1.name.localizedLowercase) }
+    }
+
     /// Atualiza só as TVs, sem esperar a próxima leitura das nuvens.
     private func updateTVs() {
-        let fresh = tvDevices()
-        var list = devices.filter { if case .androidTV = $0.source { return false } else { return true } }
-        list += fresh
-        devices = list.sorted { ($0.kind, $0.name.localizedLowercase) < ($1.kind, $1.name.localizedLowercase) }
+        devices = sortedForDisplay(devices.filter { if case .androidTV = $0.source { return false } else { return true } } + tvDevices())
     }
 
     // MARK: Atualização
@@ -234,7 +235,7 @@ package final class HubStore: ObservableObject {
         }
         pending = pending.mapValues { $0.filter { $0.value.until > now } }.filter { !$0.value.isEmpty }
 
-        devices = found.sorted { ($0.kind, $0.name.localizedLowercase) < ($1.kind, $1.name.localizedLowercase) }
+        devices = sortedForDisplay(found)
         error = failures.isEmpty ? nil : failures.joined(separator: "\n")
     }
 
@@ -390,7 +391,7 @@ package final class HubStore: ObservableObject {
         tvScan = TVScan()
         Task {
             let found = await tvDiscovery.scan()
-            let paired = Set((credentials.androidTVs ?? []).map(\.host))
+            let paired = Set(credentials.pairedTVs.map(\.host))
             tvScan = TVScan(searching: false, found: found.filter { !paired.contains($0.host) })
             debugLog("androidtv: busca achou \(found.map { "\($0.name)@\($0.host)" })")
         }
@@ -419,10 +420,8 @@ package final class HubStore: ObservableObject {
         Task {
             do {
                 try await session.finish(code: code)
-                var list = credentials.androidTVs ?? []
-                list.removeAll { $0.host == pairing.host }
-                list.append(AndroidTVConfig(name: pairing.name, host: pairing.host))
-                credentials.androidTVs = list
+                credentials.pairedTVs.removeAll { $0.host == pairing.host }
+                credentials.pairedTVs.append(AndroidTVConfig(name: pairing.name, host: pairing.host))
                 credentials.save()
                 tvPairing = nil
                 tvPairingSession = nil
@@ -444,7 +443,7 @@ package final class HubStore: ObservableObject {
     }
 
     func removeTV(host: String) {
-        credentials.androidTVs?.removeAll { $0.host == host }
+        credentials.pairedTVs.removeAll { $0.host == host }
         credentials.save()
         rebuildClients()
         updateTVs()
@@ -599,7 +598,6 @@ package final class HubStore: ObservableObject {
         guard let index = credentials.tuya.firstIndex(where: { $0.uid == uid }) else { return }
         credentials.tuya[index].app = app
         credentials.save()
-        tuya[uid].map { _ in rebuildClients() }
     }
 
     func removeTuya(uid: String) {
